@@ -1,10 +1,6 @@
 // const http = require('http');
 // const { Server } = require('socket.io');
 
-// const PORT = 3000;
-// // The only thing I know to the question "Why does Socket.io need HTTP server to work?" is that Socket.io is built on top of HTTP server. So, it needs HTTP server to work.
-// // And it not only use websockets but some other transprt protocols as well.
-
 
 // // I will connect to the database after implementing the basic game logic.
 // const server = http.createServer();
@@ -25,3 +21,29 @@
 // server.listen(PORT, () => {
 //   console.log('Server running on port 3000');
 // });
+
+
+// To create a simple http server, we import createServer from http and call it as a function.
+// To create an express app, we import express and just call it as a function.
+// To create a http server using express, we pass the express app to createServer.
+// To create a socket.io server, we always pass the http server to the Socket.io-Server constructor 
+
+import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+
+const app = express(); // All this is needed to create an http server using express.
+const httpServer = createServer(app);
+const io = new Server (httpServer, {
+        cors: {
+            origin: "*",
+            methods: ["GET", "POST"]
+        }
+    }
+)
+
+io.on('connection', (client) => {
+    console.log('Client connected:', client.id);
+});
+
+httpServer.listen(3000);
