@@ -1,28 +1,3 @@
-// const http = require('http');
-// const { Server } = require('socket.io');
-
-
-// // I will connect to the database after implementing the basic game logic.
-// const server = http.createServer();
-// const io = new Server(server, {
-//   cors: {
-//     origin: "*",
-//     methods: ["GET", "POST"]
-//   }
-// });
-
-// io.on('connection', (client) => {
-//   console.log('Client connected:', client.id);
-//   client.on('disconnect', () => {
-//     console.log('Client disconnected');
-//   });
-// });
-
-// server.listen(PORT, () => {
-//   console.log('Server running on port 3000');
-// });
-
-
 // To create a simple http server, we import createServer from http and call it as a function.
 // To create an express app, we import express and just call it as a function.
 // To create a http server using express, we pass the express app to createServer.
@@ -31,8 +6,17 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import cors from 'cors';
 
-const app = express(); // All this is needed to create an http server using express.
+// Note: Even a reconnection from hoppscotch gives different Id to the client
+// Maybe becasue it acts as a different client everytime.
+// And this may not be the case in real world connections.
+
+const PORT = process.env.PORT || 3000;
+
+// Creating a socket.io server
+const app = express();
+app.use (cors());
 const httpServer = createServer(app);
 const io = new Server (httpServer, {
         cors: {
@@ -40,10 +24,16 @@ const io = new Server (httpServer, {
             methods: ["GET", "POST"]
         }
     }
-)
+);
+
 
 io.on('connection', (client) => {
     console.log('Client connected:', client.id);
+    client.on ('message', (message) => {
+        console.log('Message received on server:', message);
+    });
 });
 
-httpServer.listen(3000);
+httpServer.listen(PORT, () => {
+    console.log("Server is listening on port", PORT);
+});
