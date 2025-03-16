@@ -1,3 +1,5 @@
+// Some Notes:
+
 // To create a simple http server, we import createServer from http and call it as a function.
 // To create an express app, we import express and just call it as a function.
 // To create a http server using express, we pass the express app to createServer.
@@ -7,6 +9,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import { GameManager } from './GameManager';
 
 // Note: Even a reconnection from hoppscotch gives different Id to the client
 // Maybe becasue it acts as a different client everytime.
@@ -27,10 +30,14 @@ const io = new Server (httpServer, {
 );
 
 
+const gameManager = new GameManager();
+
 io.on('connection', (client) => {
-    console.log('Client connected:', client.id);
-    client.on ('message', (message) => {
-        console.log('Message received on server:', message);
+    gameManager.addPlayer(client);
+    gameManager.addHandlers(client);
+
+    client.on('disconnect', () => {
+        console.log('Client disconnected');
     });
 });
 
