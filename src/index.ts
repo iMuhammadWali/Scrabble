@@ -1,25 +1,30 @@
-// Some Notes:
-
-// To create a simple http server, we import createServer from http and call it as a function.
-// To create an express app, we import express and just call it as a function.
-// To create a http server using express, we pass the express app to createServer.
-// To create a socket.io server, we always pass the http server to the Socket.io-Server constructor 
-
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import { GameManager } from './GameManager';
+import dotenv from 'dotenv'
 
-// Note: Even a reconnection from hoppscotch gives different Id to the client
-// Maybe becasue it acts as a different client everytime.
-// And this may not be the case in real world connections.
+dotenv.config();
+
+import { poolPromise } from './database';
+import { GameManager } from './GameManager';
+import userRouter from './routes/userRoutes';
+
 
 const PORT = process.env.PORT || 3000;
 
 // Creating a socket.io server
 const app = express();
 app.use (cors());
+app.use(express.json());
+app.use ('/user', userRouter);
+
+// app.post ('/test', (req, res) =>{
+//     console.log('I want to test some stuff');
+//     console.log(req.body);
+//     res.status(200);
+// })
+
 const httpServer = createServer(app);
 const io = new Server (httpServer, {
         cors: {
@@ -28,8 +33,6 @@ const io = new Server (httpServer, {
         }
     }
 );
-
-
 const gameManager = new GameManager();
 
 io.on('connection', (client) => {
