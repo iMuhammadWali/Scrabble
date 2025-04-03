@@ -19,14 +19,15 @@ const dbLoginConfig = {
 async function connectToDB() {
     try 
     {
-        // Create a new connection pool and then use the connect on that pool.
+        // creating a manual pool to avoid the explicit creating of many pool created by the SQL server behind the scenes.
         const pool = await new sql.ConnectionPool(dbLoginConfig).connect();
         console.log("Connected to database");
         return pool;
     }
     catch (err)
     {
-        console.log('An error occured');
+        // Which is probably that the database server is not running on my laptop currently.
+        console.log('An error occured while connecting to the database.');
         process.exit(1); // Have to see what this is used for.
         // return null;
     }
