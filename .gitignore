@@ -1,3 +1,4 @@
 node_modules/
 notesForMe.txt
 test.js
+.env
