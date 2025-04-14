@@ -3,6 +3,8 @@ import express, { Request, Response, Router } from "express";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import argon2 from 'argon2';
+import nodemailer from 'nodemailer';
+import { getRounds } from "bcrypt";
 dotenv.config();
 
 
@@ -29,7 +31,7 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
 
     // check if the password entered by the user is correct or not.
     const storedHashPassword: string = result.recordset[0].passwordHash;
-    const isPasswordMatch = await  argon2.verify(storedHashPassword, password); 
+    const isPasswordMatch = await argon2.verify(storedHashPassword, password);
     if (!isPasswordMatch) {
       res.status(400).json({ message: "Wrong password." });
       return;
@@ -101,15 +103,88 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
 
     console.log(insertedUser);
     const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: "2h" });
-    // for now, I am just sending the jwt token back to the user.
-    // Will send the user ID and username after I know that this works.
 
     res.status(201).json({ message: "User Registered Successfully!", token: token });
+
+
     // Cannot send the status back to the frontend after it has been sent once.
   } catch (err) {
     console.error("Registration Error:", err);
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
+// Works fine.
+router.post("/send-register-password-request", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const pool = await poolPromise;
+    const { email } = req.body;
+    const result = await pool
+      .request()
+      .input("email", email)
+      .query("SELECT * from Players where email = @email");
+
+    // Works fine till this
+    if (result.recordset.length == 0) {
+      res.json({ message: "Email does not exist !" });
+      return;
+    }
+
+    console.log("The control comes here!");
+    const passwordResetToken = jwt.sign({ email }, JWT_SECRET, { expiresIn: "15m" })
+    const senderEmail = process.env.APP_EMAIL;
+    const senderAppPassword = process.env.APP_PASS;
+
+    const linkWithToken = `${process.env.APP_URL}/reset-password?token=${passwordResetToken}`;
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: senderEmail,
+        pass: senderAppPassword  
+      }
+    });
+
+    const mailOptions = {
+      from: senderEmail,
+      to: email,
+      subject: "Reset Bahr-e-Alfaz Password",
+      html: `
+      <h3>Password Reset</h3>
+      <p>Click the link below to reset your password:</p>
+      <a href="${linkWithToken}">${linkWithToken}</a>
+      <p>This link will expire in 15 minutes.</p>
+    `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log('Reset email sent to:', email);
+    res.json({ message: "Reset link sent !" });
+  }
+  catch (err) {
+    console.log(err);
+  }
+});
+
+router.post("/reset-password", async (req: Request, res: Response) => {
+  try {
+    const { token, newPassword } = req.body;
+    const decoded: any = jwt.verify(token, JWT_SECRET);
+    const email = decoded.email;
+    const hashedPassword = await argon2.hash(newPassword);
+    const pool = await poolPromise;
+
+    //Update the password
+    pool.request()
+      .input("email", email)
+      .input("passwordHash", hashedPassword)
+      .query('UPDATE Players SET passwordHash = @passwordHash WHERE email = @email');
+
+    res.status(200).json({ message: "Password reset successful." });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ message: "Invalid or expired token." });
+  }
+})
 
 export default router;
