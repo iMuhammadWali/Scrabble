@@ -13,6 +13,7 @@ dotenv.config();
 const router: Router = express.Router();
 const JWT_SECRET: string | null = process.env.JWT || "A_LOT_OF_PEACE";
 
+// I should send the user ID as well back after the login.
 router.post("/login", async (req: Request, res: Response): Promise<void> => {
   try {
     const pool = await poolPromise; // I dont know the type. and I also believe that typescript is not for this purpose.
@@ -37,9 +38,13 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    console.log("User has succesfully logged in !");
-    const token: string = jwt.sign({ email }, JWT_SECRET, { expiresIn: "2h" });
-    res.status(200).json({ "message": "Its 1:34 am but I dont want to sleep.", "token": token });
+    // 
+    const userID = result.recordset[0].playerID;
+    const username = result.recordset[0].username;
+
+    // I may implement the JWT reset mechanism as well.
+    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: "2h" });
+    res.status(200).json({ message: "User has logged in", userID: userID, username: username, token: token });
   }
   catch (err) {
     console.log("An Error has occured while logging the user in !", err);
@@ -115,7 +120,7 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
 });
 
 // Works fine.
-router.post("/send-register-password-request", async (req: Request, res: Response): Promise<void> => {
+router.post("/send-reset-password-request", async (req: Request, res: Response): Promise<void> => {
   try {
     const pool = await poolPromise;
     const { email } = req.body;
@@ -185,6 +190,11 @@ router.post("/reset-password", async (req: Request, res: Response) => {
     console.error(err);
     res.status(400).json({ message: "Invalid or expired token." });
   }
-})
+});
+
+
+router.post('/delete-account', async()=>{
+
+});
 
 export default router;
