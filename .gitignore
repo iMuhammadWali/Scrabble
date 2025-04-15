@@ -2,3 +2,6 @@ node_modules/
 notesForMe.txt
 test.js
 .env
+dist
+.vscode
+.local
