@@ -1,11 +1,10 @@
 import Express, { Request, Response, NextFunction } from "express";
 import { poolPromise } from "../database";
 import jwt from 'jsonwebtoken';
-import { CallTracker } from "assert";
 
 const router = Express.Router();
-// All of these should be protected routes.
 
+// All of these should be protected routes.
 router.use(verifyJWT);
 
 // This works.
@@ -43,15 +42,6 @@ router.post('/add-friend', async (req, res) => {
     }
 });
 
-
-router.get('/received-requests', () => {
-    // Get all the reqests from the the DB 
-})
-
-router.post('/remove-friend', () => {
-    // Remove this frienship from the friends table
-});
-
 // This works
 router.post('/accept-friend', async (req, res) => {
     try {
@@ -86,20 +76,39 @@ router.post('/accept-friend', async (req, res) => {
 //This works
 router.get('/friends', async (req, res) => {
     try {
-        const userID  = req.query.userID as string;
-        console.log(userID);
+        const userID  = req.query.userID;
         const pool = await poolPromise;
 
-        const result = await pool
+        const friends = await pool
             .request()
             .input("userID", userID)
             .query("SELECT * from Friendships where PlayerID1 = @userID OR PlayerID2 = @userID");
 
-        const userFriends = result.recordset.map((record) => {
-            return record.PlayerID2 === userID ? record.PlayerID2 : record.PlayerID1;
+        const friendIDs = friends.recordset.map((record) => {
+            return record.PlayerID2 === userID ? record.PlayerID1 : record.PlayerID2;
         })
-        console.log("Friends are: ", userFriends);
-        res.status(200).json({ message: "Friends are displayed" });
+
+        const params = friendIDs.map((_, i)=> {
+            return `@id${i}`
+        }).join(', ');
+
+        const request = pool.request();
+        friendIDs.forEach((id, i) => {
+            request.input(`id${i}`, id);
+        });
+
+        console.log(friendIDs);
+
+        const result = await request.query(
+            `SELECT playerID, username FROM Players WHERE PlayerID IN (${params})`
+        );
+        
+        const friendNames = result.recordset.map((record) => {
+            return record.username;
+        })
+        res.status(200).json({
+            friends: friendNames, 
+        });
     }
     catch (err) {
         console.error("Error adding friend:", err);
@@ -107,14 +116,18 @@ router.get('/friends', async (req, res) => {
     }
 });
 
+router.get('/received-requests', () => {
+    // Get all the reqests from the the DB
+     
+})
+
+router.post('/remove-friend', () => {
+    // Remove this frienship from the friends table
+});
+
 
 const JWT_SECRET_KEY: string = process.env.JWT || "A_LOT_OF_PEACE";
 async function verifyJWT(req: Request, res: Response, next: NextFunction): Promise<void> {
-    // How does a request with jwt look like: 
-    // method: "GET",
-    // headers: {
-    //     "Authorization": `Bearer ${token}`
-    // }
 
     const jwtHeader: string | null = req.headers.authorization || null;
     if (!jwtHeader || !jwtHeader.startsWith("Bearer")) {
