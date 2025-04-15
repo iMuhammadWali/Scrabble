@@ -2,10 +2,10 @@ import sql, {ConnectionPool, connect} from 'mssql'
 
 // This config is taken from the SQL SDK page 
 const dbLoginConfig = {
-    user: 'sa',
-    password: 'dbsdubber',
-    database: 'testDB',
-    server: 'localhost',
+    user: process.env.DB_USER as string,
+    password: process.env.DB_PASSWORD as string,
+    database: process.env.DB_NAME as string,
+    server: process.env.SERVER_URL as string,
     pool: {
       max: 10,
       min: 0,

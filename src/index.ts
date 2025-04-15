@@ -15,7 +15,7 @@ dotenv.config();
 
 
 
-const PORT: number = Number(process.env.PORT) || 3000;
+const PORT = process.env.PORT || 3000;
 
 
 // Creating a socket.io server
