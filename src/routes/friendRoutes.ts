@@ -73,53 +73,87 @@ router.post('/accept-friend', async (req, res) => {
 
 });
 
-//This works
-router.get('/friends', async (req, res) => {
+//This works.
+router.get('/friends', async (req, res): Promise<void> => {
     try {
-        const userID  = req.query.userID;
+        const userID = Number(req.query.userID);
         const pool = await poolPromise;
 
         const friends = await pool
             .request()
             .input("userID", userID)
-            .query("SELECT * from Friendships where PlayerID1 = @userID OR PlayerID2 = @userID");
+            .query("SELECT * FROM Friendships WHERE PlayerID1 = @userID OR PlayerID2 = @userID");
 
         const friendIDs = friends.recordset.map((record) => {
             return record.PlayerID2 === userID ? record.PlayerID1 : record.PlayerID2;
-        })
+        });
 
-        const params = friendIDs.map((_, i)=> {
-            return `@id${i}`
-        }).join(', ');
+        if (friendIDs.length === 0) {
+            res.status(200).json({ friends: [] });
+            return;
+        }
 
+        const params = friendIDs.map((_, i) => `@id${i}`).join(', ');
         const request = pool.request();
+
         friendIDs.forEach((id, i) => {
             request.input(`id${i}`, id);
         });
 
-        console.log(friendIDs);
+        const result = await request.query(
+            `SELECT playerID, username FROM Players WHERE PlayerID IN (${params})`
+        );
+
+        const friendNames = result.recordset.map((record) => record.username);
+
+        res.status(200).json({ friends: friendNames });
+    } catch (err: any) {
+        console.error("Error fetching friends:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+//This works
+router.get('/received-requests', async (req, res) => {
+    try {
+        const userID = Number(req.query.userID);
+        const pool = await poolPromise;
+
+        const requests = await pool
+            .request()
+            .input("userID", userID)
+            .query("SELECT * FROM FriendRequests WHERE ReceiverID = @userID AND requestStatus <> 'Accepted'");
+
+        console.log(requests);
+        const senderIDs = requests.recordset.map((record) => {
+            return record.senderID;
+
+        });
+
+        if (senderIDs.length === 0) {
+            res.status(200).json({ receivedRequests: [] });
+            return;
+        }
+
+        const params = senderIDs.map((_, i) => `@id${i}`).join(', ');
+        const request = pool.request();
+
+        senderIDs.forEach((id, i) => {
+            request.input(`id${i}`, id);
+        });
 
         const result = await request.query(
             `SELECT playerID, username FROM Players WHERE PlayerID IN (${params})`
         );
-        
-        const friendNames = result.recordset.map((record) => {
-            return record.username;
-        })
-        res.status(200).json({
-            friends: friendNames, 
-        });
-    }
-    catch (err) {
-        console.error("Error adding friend:", err);
+
+        const requestNames = result.recordset.map((record) => record.username);
+
+        res.status(200).json({ receivedRequests: requestNames });
+    } catch (err: any) {
+        console.error("Error fetching friend requests:", err);
         res.status(500).json({ message: "Internal server error" });
     }
 });
 
-router.get('/received-requests', () => {
-    // Get all the reqests from the the DB
-     
-})
 
 router.post('/remove-friend', () => {
     // Remove this frienship from the friends table
