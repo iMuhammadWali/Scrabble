@@ -160,7 +160,7 @@ router.post('/remove-friend', () => {
 });
 
 
-const JWT_SECRET_KEY: string = process.env.JWT || "A_LOT_OF_PEACE";
+const JWT_SECRET_KEY: string = process.env.JWT_SECRET as string;
 async function verifyJWT(req: Request, res: Response, next: NextFunction): Promise<void> {
 
     const jwtHeader: string | null = req.headers.authorization || null;
