@@ -1,4 +1,6 @@
 import sql, {ConnectionPool, connect} from 'mssql'
+import dotenv from 'dotenv';
+dotenv.config();
 
 // This config is taken from the SQL SDK page 
 const dbLoginConfig = {
@@ -30,6 +32,7 @@ async function connectToDB() {
         // Which is probably that the database server is not running on my laptop currently.
         // console.log('An error occured while connecting to the database.');
         console.log(err);
+        console.log('An error occured while connecting to the database: ' + err);
         process.exit(1); // Have to see what this is used for.
         // return null;
     }

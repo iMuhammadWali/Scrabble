@@ -8,7 +8,7 @@ import nodemailer from 'nodemailer';
 // Note for me: For now, the token expires in 2h but I will implement a token refresh mechanism later after finishing the database tasks.
 
 const router: Router = express.Router();
-const JWT_SECRET: string | null = process.env.JWT || "A_LOT_OF_PEACE";
+const JWT_SECRET: string = process.env.JWT_SECRET as string;
 
 // I should send the user ID as well back after the login.
 router.post("/login", async (req: Request, res: Response): Promise<void> => {
