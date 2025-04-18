@@ -1,11 +1,8 @@
 import { poolPromise } from "../database";
 import express, { Request, Response, Router } from "express";
 import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
 import argon2 from 'argon2';
 import nodemailer from 'nodemailer';
-import { getRounds } from "bcrypt";
-dotenv.config();
 
 
 // Note for me: For now, the token expires in 2h but I will implement a token refresh mechanism later after finishing the database tasks.
@@ -110,8 +107,6 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
     const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: "2h" });
 
     res.status(201).json({ message: "User Registered Successfully!", token: token });
-
-
     // Cannot send the status back to the frontend after it has been sent once.
   } catch (err) {
     console.error("Registration Error:", err);

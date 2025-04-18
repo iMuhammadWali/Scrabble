@@ -1,41 +1,60 @@
-import { Socket } from "socket.io";
 import { Game } from "./Game";
-export class GameManager{
-    private games: any[];
-    // private gameId: number = 0;
-    private pendingPlayer: Socket | null; // 
-    constructor()
-    {
-        this.games = [];
-        this.pendingPlayer = null;
+import { Socket } from "socket.io";
+
+type PlayerInfo = {
+    playerId: number;
+    username: string;
+    socket: Socket;
+};
+
+export class GameManager {
+    private games: Map<number, Game> = new Map();
+    private nextGameId: number = 1;
+    private waitingPlayer: PlayerInfo | null = null;
+
+    createGame(player1: PlayerInfo, player2: PlayerInfo): number {
+        const gameId = this.nextGameId++;
+        const game = new Game(gameId, {
+            ...player1,
+            rack: [],
+            score: 0
+        }, {
+            ...player2,
+            rack: [],
+            score: 0
+        });
+
+        this.games.set(gameId, game);
+
+        //Add in the Database here asw
+        return gameId;
     }
 
-    public addPlayer(player: Socket)
-    {
-        console.log(`Player added: ${player.id}`);
-        if (this.pendingPlayer)
-        {
-            // We can create a game becasue the condtions are met.
-            const game = new Game (this.pendingPlayer, player);
-            this.games.push(game);
-
-            // I should also add this game to my database.
-            // But that should probably in the constructor of the game class.
-
-            this.pendingPlayer = null; // We dont have any pending player now.
-        }
-        else 
-        {
-            this.pendingPlayer = player;
+    queuePlayer(player: PlayerInfo): { gameId?: number, message: string } {
+        if (this.waitingPlayer === null) {
+            this.waitingPlayer = player;
+            player.socket.emit("waiting for an opponent");
+            return { message: "Waiting for an opponent..." };
+        } else {
+            const gameId = this.createGame(this.waitingPlayer, player);
+            this.waitingPlayer.socket.emit("gameCreated", { gameId, playerId: 1 });
+            player.socket.emit("gameCreated", { gameId, playerId: 2 });
+            this.waitingPlayer = null;
+            return { gameId, message: "Game started." };
         }
     }
 
-    public addHandlers(player: Socket)
-    {
-        player.on ('message', (message) => {
-            console.log('Message received on server:', message);
-            console.log(`Message tpe: ${typeof message}`);
-        })
-        
+    getGame(gameId: number): Game | undefined {
+        return this.games.get(gameId);
+    }
+
+    endGame(gameId: number) {
+        this.games.delete(gameId);
+    }
+
+    playMove(gameId: number, socket: Socket, word: string, startX: number, startY: number, direction: 'H' | 'V') {
+        const game = this.games.get(gameId);
+        if (!game) return { error: "Game not found." };
+        return game.playMove(socket, word, startX, startY, direction);
     }
 }

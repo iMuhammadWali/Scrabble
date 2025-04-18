@@ -5,7 +5,8 @@ const dbLoginConfig = {
     user: process.env.DB_USER as string,
     password: process.env.DB_PASSWORD as string,
     database: process.env.DB_NAME as string,
-    server: process.env.SERVER_URL as string,
+    server: process.env.DB_SERVER_NAME as string,
+
     pool: {
       max: 10,
       min: 0,
@@ -27,7 +28,8 @@ async function connectToDB() {
     catch (err)
     {
         // Which is probably that the database server is not running on my laptop currently.
-        console.log('An error occured while connecting to the database.');
+        // console.log('An error occured while connecting to the database.');
+        console.log(err);
         process.exit(1); // Have to see what this is used for.
         // return null;
     }
