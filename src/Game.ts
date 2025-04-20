@@ -42,6 +42,7 @@ export class Game {
         this.players.forEach((p, idx) => {
             p.socket.emit('gameState', {
                 playerId: idx,
+                gameId: this.gameId,
                 ...this.getPublicState(p.socket),
             });
         });
@@ -77,6 +78,7 @@ export class Game {
         };
     }
 
+    // Have to add the gane logic. But will do it later.
     playMove(playerId: number, word: string, startX: number, startY: number, direction: 'H' | 'V') {
 
         // Verify if the player made the move on their turn. 

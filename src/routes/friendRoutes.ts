@@ -188,4 +188,41 @@ async function verifyJWT(req: Request, res: Response, next: NextFunction): Promi
 }
 
 
+router.post("/change-username", async (req: Request, res: Response) => {
+    try {
+      const { newUsername, email } = req.body;
+  
+      if (!newUsername || newUsername.length < 3) {
+        res.status(400).json({ message: "Username must be at least 3 characters." });
+        return;
+      }
+  
+      const pool = await poolPromise;
+      
+      // Check if username is already taken by some other user.
+      const checkUsername = await pool
+        .request()
+        .input("newUsername", newUsername)
+        .query("SELECT * FROM Players WHERE username = @newUsername");
+  
+      if (checkUsername.recordset.length > 0) {
+        res.status(400).json({ message: "Username already taken." });
+        return;
+      }
+  
+      // Update
+      await pool
+        .request()
+        .input("email", email)
+        .input("newUsername", newUsername)
+        .query("UPDATE Players SET username = @newUsername WHERE email = @email");
+  
+      res.status(200).json({ message: "Username updated successfully." });
+    } catch (err) {
+      console.error("Username change error:", err);
+      res.status(400).json({ message: "Invalid token or server error." });
+    }
+});
+  
+
 export default router;

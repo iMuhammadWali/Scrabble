@@ -15,6 +15,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use('/user', userRouter);
+
+
+// friendRouter should be named as "protectedRouter"
 app.use('/protected', friendRouter);
 
 const httpServer = createServer(app);
@@ -22,7 +25,9 @@ const io = new Server(httpServer, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
-    }
+    },
+    pingTimeout: 20000, // default is 5000ms
+    pingInterval: 10000 // how often to send pings
 });
 
 const gameManager = new GameManager();
@@ -68,10 +73,11 @@ io.on('connection', (socket: Socket) => {
                 return;
 
             
-            // This should be done in the game class
+            // This should be done in the game class but later.
             game.players.forEach((p, idx) => {
                 p.socket.emit('gameState', {
                     playerId: idx,
+                    gameId: game.gameId,
                     ...game.getPublicState(p.socket),
                 });
             });

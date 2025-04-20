@@ -44,7 +44,6 @@ export class GameManager {
             const gameId = this.createGame(this.waitingPlayer, player);
 
             // Sending 0 and 1 as playerIDs because currentTurn is also either 0 or 1.
-
             this.waitingPlayer.socket.emit("gameCreated", { gameId, playerId: 0 });
             player.socket.emit("gameCreated", { gameId, playerId: 1 });
 
@@ -63,6 +62,18 @@ export class GameManager {
 
     playMove(gameId: number, playerId: number, socket: Socket, word: string, startX: number, startY: number, direction: 'H' | 'V') {
         const game = this.games.get(gameId);
+
+        // Check if the game has that socket ID or not.
+        // This check ensures that only the person who is the part of the game can change the state of the game.
+        const player = game?.players.find(p => p.socket.id === socket.id);
+        if (!player) {
+            return { error: "You are not part of this game." };
+        }
+        
+        // Check if the playerId is correct or not.
+        if (player.playerId !== playerId) {
+            return { error: "Invalid player ID." };
+        }
         if (!game) {
             return { error: "Game not found." };
         }
