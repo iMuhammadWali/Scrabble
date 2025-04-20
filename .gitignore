@@ -1,6 +1,8 @@
 node_modules/
 notesForMe.txt
 test.js
+test1.js
+move.js
 .env
 dist
 .vscode

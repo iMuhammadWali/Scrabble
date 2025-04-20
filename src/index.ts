@@ -7,7 +7,7 @@ dotenv.config();
 import userRouter from './routes/userRoutes';
 import friendRouter from './routes/friendRoutes';
 import { GameManager } from './GameManager';
-
+import jwt from 'jsonwebtoken'
 
 const PORT = process.env.PORT || 3000;
 
@@ -26,46 +26,62 @@ const io = new Server(httpServer, {
 });
 
 const gameManager = new GameManager();
-const socketToGameId = new Map<string, number>();
+
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token; // client should send this
+    if (!token) return next(new Error("Authentication error"));
+
+    jwt.verify(token, process.env.JWT_SECRET as string, (err: any) => {
+        if (err) return next(new Error("Authentication error"));
+        next();
+    });
+});
 
 io.on('connection', (socket: Socket) => {
     console.log(`Client connected: ${socket.id}`);
 
-    socket.on('joinQueue', ({ username }) => {
+    socket.on('joinQueue', (data) => {
+        const username = data.username;
         const player = {
-            playerId: 0, // will be set in `gameCreated` event
+            playerId: -1, // This one is dummy and the real one will be set in `gameCreated` event.
             username,
             socket
         };
 
-        const result = gameManager.queuePlayer(player);
-        if (result.gameId) {
-            socketToGameId.set(socket.id, result.gameId);
-        }
+        // Every player has the game ID 
+        // They should also have the Player ID
+        gameManager.queuePlayer(player);
     });
 
-    socket.on('playMove', ({ gameId, word, startX, startY, direction }) => {
-        const result = gameManager.playMove(gameId, socket, word, startX, startY, direction);
+    socket.on('playMove', (data) => {
+        // Need to add the check that if anyone of this is undefined, then return.
+        const { gameId, playerId, word, startX, startY, direction } = data;
+        const result = gameManager.playMove(gameId, playerId, socket, word, startX, startY, direction);
 
         if ("error" in result) {
             socket.emit('invalidMove', result.error);
         } else {
+            // If the move is played, send the updated game state to both players.
+            console.log("Move Played");
             const game = gameManager.getGame(gameId);
-            if (!game) return;
-            game.players.forEach(p => {
-                p.socket.emit('gameState', game.getPublicState(p.socket));
+            if (!game) 
+                return;
+
+            
+            // This should be done in the game class
+            game.players.forEach((p, idx) => {
+                p.socket.emit('gameState', {
+                    playerId: idx,
+                    ...game.getPublicState(p.socket),
+                });
             });
         }
     });
 
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
-        const gameId = socketToGameId.get(socket.id);
-        if (gameId !== undefined) {
-            gameManager.endGame(gameId);
-            socketToGameId.delete(socket.id);
-        }
-    });
+        // Need to end the game for now but will add the recnnect logic later.
+        });
 });
 
 httpServer.listen(PORT, () => {

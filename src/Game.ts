@@ -6,11 +6,6 @@ const TILE_DISTRIBUTION: { [letter: string]: number } = {
     S: 4, T: 6, U: 4, V: 2, W: 2, X: 1, Y: 2, Z: 1, ' ': 2
 };
 
-// Player has ID
-// Socket
-// username
-// score
-// rack
 type Player = {
     playerId: number;
     socket: Socket;
@@ -27,25 +22,37 @@ export class Game {
     moves: string[];
     currentTurn: number;
 
+    // Creates a game correctly
     constructor(gameId: number, player1: Player, player2: Player) {
         this.gameId = gameId;
         this.players = [player1, player2];
-        this.board = Array.from({ length: 15 }, () => 
-            Array(15).fill(' ')
-        );
+        this.board = Array.from({ length: 15 }, () => Array(15).fill(' '));
         this.tileBag = this.createShuffledTileBag();
         this.moves = [];
         this.currentTurn = 0;
+    
         this.players[0].rack = this.drawTiles(7);
         this.players[1].rack = this.drawTiles(7);
+    
+        console.log("Game created with ID:", gameId);
+        console.log(`Player ${this.players[0].username} joined game ${gameId}. Their rack is: ${this.players[0].rack}`);
+        console.log(`Player ${this.players[1].username} joined game ${gameId}. Their rack is: ${this.players[1].rack}`);
+    
+        // Send initial state and playerId to each player of the game.
+        this.players.forEach((p, idx) => {
+            p.socket.emit('gameState', {
+                playerId: idx,
+                ...this.getPublicState(p.socket),
+            });
+        });
     }
+    
 
     private createShuffledTileBag(): string[] {
         const bag: string[] = [];
         for (const [letter, count] of Object.entries(TILE_DISTRIBUTION)) {
             for (let i = 0; i < count; i++) bag.push(letter);
         }
-
 
         for (let i = bag.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -70,48 +77,46 @@ export class Game {
         };
     }
 
-    // move {
-    //  played by
-    //  word that was played
-    //  start
-    //  ended
-    //}
-    playMove(socket: Socket, word: string, startX: number, startY: number, direction: 'H' | 'V') {
+    playMove(playerId: number, word: string, startX: number, startY: number, direction: 'H' | 'V') {
 
-        // Verify the turn
-        const playerIndex = this.players.findIndex(p => p.socket.id === socket.id);
-        if (playerIndex !== this.currentTurn) return { error: "Not your turn." };
-
-
-        const player = this.players[playerIndex];
-        const usedLetters: string[] = [];
-
-        for (let i = 0; i < word.length; i++) {
-            const x = direction === 'H' ? startX + i : startX;
-            const y = direction === 'V' ? startY + i : startY;
-            const boardLetter = this.board[y][x];
-            const wordLetter = word[i];
-
-            if (boardLetter === ' ') {
-                if (!player.rack.includes(wordLetter)) {
-                    return { error: `You don't have letter ${wordLetter}` };
-                }
-                this.board[y][x] = wordLetter;
-                usedLetters.push(wordLetter);
-            }
+        // Verify if the player made the move on their turn. 
+        if (playerId !== this.currentTurn) {
+            return { error: "Not your turn." };
         }
 
-        // Update rack and draw new tiles
-        player.rack = player.rack.filter(l => !usedLetters.includes(l));
-        player.rack.push(...this.drawTiles(usedLetters.length));
+        console.log ("Players turn verified");
+        const player = this.players[playerId];
 
-        // TODO: Score calculation
+        const usedLetters: string[] = [];
+
+        // for (let i = 0; i < word.length; i++) {
+        //     const x = direction === 'H' ? startX + i : startX;
+        //     const y = direction === 'V' ? startY + i : startY;
+        //     const boardLetter = this.board[y][x];
+        //     const wordLetter = word[i];
+
+        //     // This is the issue.
+        //     if (boardLetter === ' ') {
+        //         if (!player.rack.includes(wordLetter)) {
+        //             return { error: `You don't have letter ${wordLetter}` };
+        //         }
+        //         this.board[y][x] = wordLetter;
+        //         usedLetters.push(wordLetter);
+        //     }
+        // }
+
+        // player.rack = player.rack.filter(l => !usedLetters.includes(l));
+        // player.rack.push(...this.drawTiles(usedLetters.length));
+
+        // // TODO: Score calculation
         const wordScore = word.length; // Placeholder
         player.score += wordScore;
 
-        this.moves.push(`${player.username} played ${word}`);
-        this.currentTurn = 1 - this.currentTurn;
+        // this.moves.push(`${player.username} played ${word}`);
 
+        // 1 - 1 = 0
+        // 1 - 0 = 1
+        this.currentTurn = 1 - this.currentTurn;
         return { success: true, wordScore };
     }
 }

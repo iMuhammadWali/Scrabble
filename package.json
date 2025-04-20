@@ -20,12 +20,14 @@
     "jsonwebtoken": "^9.0.2",
     "mssql": "^11.0.1",
     "nodemailer": "^6.10.1",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.13.10",
     "nodemon": "^3.1.9",
+    "readline-sync": "^1.4.10",
     "sucrase": "^3.35.0",
     "typescript": "^5.8.2"
   }

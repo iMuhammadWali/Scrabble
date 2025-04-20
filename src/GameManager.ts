@@ -1,6 +1,8 @@
 import { Game } from "./Game";
 import { Socket } from "socket.io";
 
+
+// I need to see what these return message are and what is their use.
 type PlayerInfo = {
     playerId: number;
     username: string;
@@ -25,7 +27,6 @@ export class GameManager {
         });
 
         this.games.set(gameId, game);
-
         //Add in the Database here asw
         return gameId;
     }
@@ -33,12 +34,20 @@ export class GameManager {
     queuePlayer(player: PlayerInfo): { gameId?: number, message: string } {
         if (this.waitingPlayer === null) {
             this.waitingPlayer = player;
-            player.socket.emit("waiting for an opponent");
             return { message: "Waiting for an opponent..." };
         } else {
+            // At this point, both of the players have playerId -1
+            // Set the IDs
+            this.waitingPlayer.playerId = 0;
+            player.playerId = 1;
+
             const gameId = this.createGame(this.waitingPlayer, player);
-            this.waitingPlayer.socket.emit("gameCreated", { gameId, playerId: 1 });
-            player.socket.emit("gameCreated", { gameId, playerId: 2 });
+
+            // Sending 0 and 1 as playerIDs because currentTurn is also either 0 or 1.
+
+            this.waitingPlayer.socket.emit("gameCreated", { gameId, playerId: 0 });
+            player.socket.emit("gameCreated", { gameId, playerId: 1 });
+
             this.waitingPlayer = null;
             return { gameId, message: "Game started." };
         }
@@ -52,9 +61,11 @@ export class GameManager {
         this.games.delete(gameId);
     }
 
-    playMove(gameId: number, socket: Socket, word: string, startX: number, startY: number, direction: 'H' | 'V') {
+    playMove(gameId: number, playerId: number, socket: Socket, word: string, startX: number, startY: number, direction: 'H' | 'V') {
         const game = this.games.get(gameId);
-        if (!game) return { error: "Game not found." };
-        return game.playMove(socket, word, startX, startY, direction);
+        if (!game) {
+            return { error: "Game not found." };
+        }
+        return game.playMove(playerId, word, startX, startY, direction);
     }
 }
