@@ -1,30 +1,61 @@
 import Express, { Request, Response, NextFunction } from "express";
 import { poolPromise } from "../database";
 import jwt from 'jsonwebtoken';
+import authenticate from "../utils/authenticate";
 
 const router = Express.Router();
 
 // All of these should be protected routes.
-router.use(verifyJWT);
+router.use(authenticate);
 
 // This works.
 router.post('/add-friend', async (req, res) => {
     try {
-        const { userID, receiverID } = req.body;
-        if (!userID || !receiverID) {
-            res.status(400).json({ message: "Missing senderID or receiverID" });
+        const { username } = req.body;
+        const token = req.headers.authorization?.split(' ')[1];
+
+        if (!token) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;   
+        }
+
+        const decodedToken = jwt.verify(token, process.env.JWT_SECRET as string);
+        if (!decodedToken) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const userID = (decodedToken as any).id; // Assuming the token contains id
+
+
+        if (!userID) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        if (!username) {
+            res.status(400).json({ message: "Missing username" });
             return;
         }
 
         const pool = await poolPromise;
         const receiver = await pool.request()
-            .input("ID", receiverID)
-            .query("SELECT * FROM Players where PlayerID = @ID");
+            .input("username", username)
+            .query("SELECT * FROM Players where username = @username");
 
         if (!receiver.recordset.length) {
             res.status(400).json({ message: "ReceiverID not found" });
             return;
         }
+
+        console.log("UserID: ", userID);
+        console.log("ReceiverID: ", receiver.recordset[0].playerID);
+        const receiverID = receiver.recordset[0].playerID;
+        if (userID === receiverID) {
+            res.status(400).json({ message: "You cannot send a friend request to yourself" });
+            return;
+        }
+
 
         const requestStatus = "Pending";
         pool.request()
@@ -46,7 +77,22 @@ router.post('/add-friend', async (req, res) => {
 router.post('/accept-friend', async (req, res) => {
     try {
         const { requestID } = req.body;
+
+        if (!requestID) {
+            res.status(400).json({ message: "Missing requestID" });
+            return;
+        }
+
         const pool = await poolPromise;
+
+        let userID = req.user?.id;
+
+        if (!userID) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        console.log("UserID: ", userID);
 
         await pool.request()
             .input("requestID", requestID)
@@ -57,6 +103,15 @@ router.post('/accept-friend', async (req, res) => {
             .query("SELECT * FROM FriendRequests WHERE requestID = @requestID");
 
         console.log(request.recordset[0]);
+
+        if (!request.recordset.length) {
+            res.status(400).json({ message: "Request not found" });
+            return;
+        }
+        if (request.recordset[0].requestStatus !== "Pending") {
+            res.status(400).json({ message: "Request already accepted or rejected" });
+            return;
+        }
 
         const { senderID, receiverID } = request.recordset[0];
         pool.request()
@@ -115,37 +170,31 @@ router.get('/friends', async (req, res): Promise<void> => {
 //This works
 router.get('/received-requests', async (req, res) => {
     try {
-        const userID = Number(req.query.userID);
+        const userID = req.user?.id;
+
+        if (!userID) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
         const pool = await poolPromise;
 
         const requests = await pool
             .request()
             .input("userID", userID)
-            .query("SELECT * FROM FriendRequests WHERE ReceiverID = @userID AND requestStatus <> 'Accepted'");
+            .query("SELECT FR.requestID, P.username, FR.senderID FROM FriendRequests FR JOIN Players P ON P.playerID = FR.receiverID WHERE FR.ReceiverID = @userID AND FR.requestStatus = 'Pending';");
 
-        console.log(requests);
-        const senderIDs = requests.recordset.map((record) => {
-            return record.senderID;
-
+        const requestNames: {
+            username: string;
+            requestID: number;
+        }[] = requests.recordset.map((record) => {
+            return {
+                username: record.username as string,
+                requestID: record.requestID as number
+            };
         });
 
-        if (senderIDs.length === 0) {
-            res.status(200).json({ receivedRequests: [] });
-            return;
-        }
-
-        const params = senderIDs.map((_, i) => `@id${i}`).join(', ');
-        const request = pool.request();
-
-        senderIDs.forEach((id, i) => {
-            request.input(`id${i}`, id);
-        });
-
-        const result = await request.query(
-            `SELECT playerID, username FROM Players WHERE PlayerID IN (${params})`
-        );
-
-        const requestNames = result.recordset.map((record) => record.username);
+        console.log(requestNames);
 
         res.status(200).json({ receivedRequests: requestNames });
     } catch (err: any) {
@@ -159,33 +208,6 @@ router.post('/remove-friend', () => {
     // Remove this frienship from the friends table
 });
 
-
-const JWT_SECRET_KEY: string = process.env.JWT_SECRET as string;
-async function verifyJWT(req: Request, res: Response, next: NextFunction): Promise<void> {
-
-    const jwtHeader: string | null = req.headers.authorization || null;
-    if (!jwtHeader || !jwtHeader.startsWith("Bearer")) {
-        res.status(500).json({ "message": "Request dont have json" });
-        return;
-    }
-
-    const jwtToken: string = jwtHeader.split(" ")[1];
-
-    jwt.verify(jwtToken, JWT_SECRET_KEY, (err, decodedResult) => {
-        if (err) {
-            console.log("The jwt token sent by the user is not valid")
-            res.json({ message: "Token is invalid" });
-            return;
-        }
-        // req.user: JwtPayload = decodedResult as JwtPayload;
-
-        // Decoded result has the object I used while making the token and iat and exp (I dont what or how these are used).
-        console.log(typeof decodedResult);
-        // this is useless information.
-        console.log(decodedResult);
-        next();
-    });
-}
 
 
 router.post("/change-username", async (req: Request, res: Response) => {

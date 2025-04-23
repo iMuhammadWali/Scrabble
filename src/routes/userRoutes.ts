@@ -31,8 +31,8 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
     const pool = await poolPromise;
     const { username, email, password } = req.body;
 
-    console.log('JWT_SECRET: ', JWT_SECRET);
-    console.log('Type of JWT_SECRET', typeof JWT_SECRET);
+    // console.log('JWT_SECRET: ', JWT_SECRET);
+    // console.log('Type of JWT_SECRET', typeof JWT_SECRET);
 
     if (!username || username.length < 3) {
       res.status(400).json({ message: "Username must be at least 3 characters long." });
@@ -70,9 +70,9 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
       .query("SELECT * from Players where username = @username AND passwordHash = @passwordHash");
 
     console.log(insertedUser);
-    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: "2h" });
+    // const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: "2h" });
 
-    res.status(201).json({ message: "User Registered Successfully!", token: token });
+    res.status(201).json({ message: "User Registered Successfully!"});
   } catch (err) {
     console.error("Registration Error:", err);
     res.status(500).json({ message: "Internal Server Error" });
@@ -108,11 +108,34 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
     const username = result.recordset[0].username;
 
     // I may implement the JWT reset mechanism as well.
-    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: "2h" });
+    const token = jwt.sign({ id: userID, email, username }, JWT_SECRET, { expiresIn: "2h" });
     res.status(200).json({ message: "User has logged in", userID: userID, username: username, token: token });
   }
   catch (err) {
     console.log("An Error has occured while logging the user in !", err);
+  }
+});
+
+router.get("/check-token", async (req: Request, res: Response) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      res.status(401).json({ message: "Unauthorized Request" });
+      return;
+    }
+
+    // Verify the token
+    jwt.verify(token, JWT_SECRET, (err: any) => {
+      if (err) {
+        res.status(401).json({ message: "Invalid or expired token." });
+        return;
+      }
+      res.status(200).json({ message: "Token is valid." });
+    });
+  }
+  catch (err) {
+    console.error("Token check error: ", err);
+    res.status(500).json({ message: "Server error." });
   }
 });
 
