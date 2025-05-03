@@ -31,9 +31,6 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
     const pool = await poolPromise;
     const { username, email, password } = req.body;
 
-    // console.log('JWT_SECRET: ', JWT_SECRET);
-    // console.log('Type of JWT_SECRET', typeof JWT_SECRET);
-
     if (!username || username.length < 3) {
       res.status(400).json({ message: "Username must be at least 3 characters long." });
       return;
@@ -68,9 +65,6 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
       .input("email", email)
       .input("passwordHash", hashedPassword)
       .query("SELECT * from Players where username = @username AND passwordHash = @passwordHash");
-
-    console.log(insertedUser);
-    // const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: "2h" });
 
     res.status(201).json({ message: "User Registered Successfully!"});
   } catch (err) {
@@ -108,7 +102,10 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
     const username = result.recordset[0].username;
 
     // I may implement the JWT reset mechanism as well.
-    const token = jwt.sign({ id: userID, email, username }, JWT_SECRET, { expiresIn: "2h" });
+    const token = jwt.sign({ user: {
+      id: userID, email, username
+    }}, JWT_SECRET);
+
     res.status(200).json({ message: "User has logged in", userID: userID, username: username, token: token });
   }
   catch (err) {

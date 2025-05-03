@@ -137,7 +137,7 @@ router.get('/friends', async (req, res): Promise<void> => {
         const friends = await pool
             .request()
             .input("userID", userID)
-            .query("SELECT * FROM Friendships WHERE PlayerID1 = @userID OR PlayerID2 = @userID");
+            .query("SELECT * FROM FriendRequests WHERE PlayerID1 = @userID OR PlayerID2 = @userID AND requestStatus = 'Accepted'");
 
         const friendIDs = friends.recordset.map((record) => {
             return record.PlayerID2 === userID ? record.PlayerID1 : record.PlayerID2;

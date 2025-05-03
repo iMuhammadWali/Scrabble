@@ -15,7 +15,7 @@ export default async function authenticate(req: Request, res: Response, next: Ne
 
     try {
         const decodedResult = jwt.verify(jwtToken, JWT_SECRET_KEY) as UserPayload;
-        req.user = decodedResult;
+        req.user = decodedResult.user;
         
         next();
     } catch (err) {
