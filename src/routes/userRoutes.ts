@@ -106,7 +106,7 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
       id: userID, email, username
     }}, JWT_SECRET);
 
-    res.status(200).json({ message: "User has logged in", userID: userID, username: username, token: token });
+    res.status(200).json({ message: "User has logged in", token: token, user: { userID: userID, username: username, email: email }  });
   }
   catch (err) {
     console.log("An Error has occured while logging the user in !", err);

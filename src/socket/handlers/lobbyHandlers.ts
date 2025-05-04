@@ -33,37 +33,24 @@ export function registerLobbyHandlers(io: Server, socket: Socket) {
         if (!user) return;
 
         if (!data) return;
-
         data = JSON.parse(data);
 
         let { roomId } = data;
-
         roomId = roomId.trim().toLowerCase();
-
         if (!roomId) return;
-
         if (roomId.length != 6) return;
-
         if (!/^[a-zA-Z0-9]+$/.test(roomId)) return; // Check if roomId contains only alphanumeric characters
 
         // Check if roomId has any players
         const room = io.of('/').adapter.rooms.get(roomId);
-
-        console.log("Rooms:", io.sockets.adapter.rooms);
-
-        // console.log('Room: ', roomId, room);
-
         if (!room) {
             socket.emit('roomNotFound', { message: 'Room not found' });
             return;
         }
-
-        if (room.size >= 2) {
+        if (room.size >= 4) {
             socket.emit('roomFull', { message: 'Room is full' });
             return;
         }
-
-
         
         // Check if the user is already in the room
         const existingRoom = Array.from(socket.rooms).find((r) => r !== socket.id);
@@ -77,9 +64,18 @@ export function registerLobbyHandlers(io: Server, socket: Socket) {
 
         socket.join(roomId);
 
-        console.log("Joined room:", roomId, socket.rooms);
+        socket.emit('roomJoined', { roomId: roomId.trim().toUpperCase(), username: user.username });
 
-        io.to(roomId).emit('playerJoined', { username: socket.user?.username });
+        io.to(roomId).emit('playerList', {
+            players: Array.from(io.sockets.adapter.rooms.get(roomId) || []).map((socketId) => {
+                const inSocket = io.sockets.sockets.get(socketId);
+                return {
+                    id: socketId,
+                    username: inSocket?.user?.username,
+                    isHost: socketId != socket?.id,
+                };
+            })
+        });
     });
 
     socket.on('requestServerPlayersList', (data) => {
@@ -98,19 +94,4 @@ export function registerLobbyHandlers(io: Server, socket: Socket) {
         console.log('Players in room:', players);
         io.to(roomId).emit('serverPlayersList', { players });
     })
-}
-
-export const createLobby = (socket: Socket, gameManager: GameManager, data: any) => {
-
-    const { gameId } = data;
-    const username = socket.user?.username as string; // Assuming the token contains the username
-    const player = {
-        playerId: -1, // This one is dummy and the real one will be set in `gameCreated` event.
-        username,
-        socket
-    };
-
-    // Every player has the game ID 
-    // They should also have the Player ID
-    gameManager.createGame(player, gameId);
 }

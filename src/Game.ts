@@ -15,7 +15,7 @@ type Player = {
 };
 
 export class Game {
-    gameId: number;
+    gameId: string;
     players: Player[];
     board: string[][];
     tileBag: string[];
@@ -23,7 +23,7 @@ export class Game {
     currentTurn: number;
 
     // Creates a game correctly
-    constructor(gameId: number, player1: Player, player2: Player) {
+    constructor(gameId: string, player1: Player, player2: Player) {
         this.gameId = gameId;
         this.players = [player1, player2];
         this.board = Array.from({ length: 15 }, () => Array(15).fill(' '));

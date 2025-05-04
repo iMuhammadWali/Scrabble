@@ -2,7 +2,6 @@ import { Game } from "./Game";
 import { Socket } from "socket.io";
 
 
-// I need to see what these return message are and what is their use.
 type PlayerInfo = {
     playerId: number;
     username: string;
@@ -10,12 +9,10 @@ type PlayerInfo = {
 };
 
 export class GameManager {
-    private games: Map<number, Game> = new Map();
-    private nextGameId: number = 1;
+    private games: Map<string, Game> = new Map();
     private waitingPlayer: PlayerInfo | null = null;
 
-    createGame(player1: PlayerInfo, player2: PlayerInfo): number {
-        const gameId = this.nextGameId++;
+    createGame(gameId: string, player1: PlayerInfo, player2: PlayerInfo): string {
         const game = new Game(gameId, {
             ...player1,
             rack: [],
@@ -31,36 +28,36 @@ export class GameManager {
         return gameId;
     }
 
-    queuePlayer(player: PlayerInfo): { gameId?: number, message: string } {
-        if (this.waitingPlayer === null) {
-            this.waitingPlayer = player;
-            return { message: "Waiting for an opponent..." };
-        } else {
-            // At this point, both of the players have playerId -1
-            // Set the IDs
-            this.waitingPlayer.playerId = 0;
-            player.playerId = 1;
+    // queuePlayer(player: PlayerInfo): { gameId?: string, message: string } {
+    //     if (this.waitingPlayer === null) {
+    //         this.waitingPlayer = player;
+    //         return { message: "Waiting for an opponent..." };
+    //     } else {
+    //         // At this point, both of the players have playerId -1
+    //         // Set the IDs
+    //         this.waitingPlayer.playerId = 0;
+    //         player.playerId = 1;
 
-            const gameId = this.createGame(this.waitingPlayer, player);
+    //         const gameId = this.createGame(this.waitingPlayer, player);
 
-            // Sending 0 and 1 as playerIDs because currentTurn is also either 0 or 1.
-            this.waitingPlayer.socket.emit("gameCreated", { gameId, playerId: 0 });
-            player.socket.emit("gameCreated", { gameId, playerId: 1 });
+    //         // Sending 0 and 1 as playerIDs because currentTurn is also either 0 or 1.
+    //         this.waitingPlayer.socket.emit("gameCreated", { gameId, playerId: 0 });
+    //         player.socket.emit("gameCreated", { gameId, playerId: 1 });
 
-            this.waitingPlayer = null;
-            return { gameId, message: "Game started." };
-        }
-    }
+    //         this.waitingPlayer = null;
+    //         return { gameId, message: "Game started." };
+    //     }
+    // }
 
-    getGame(gameId: number): Game | undefined {
+    getGame(gameId: string): Game | undefined {
         return this.games.get(gameId);
     }
 
-    endGame(gameId: number) {
+    endGame(gameId: string) {
         this.games.delete(gameId);
     }
 
-    playMove(gameId: number, playerId: number, socket: Socket, word: string, startX: number, startY: number, direction: 'H' | 'V') {
+    playMove(gameId: string, playerId: number, socket: Socket, word: string, startX: number, startY: number, direction: 'H' | 'V') {
         const game = this.games.get(gameId);
 
         // Check if the game has that socket ID or not.
