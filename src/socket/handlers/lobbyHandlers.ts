@@ -22,8 +22,6 @@ export function registerLobbyHandlers(io: Server, socket: Socket) {
         const roomId = generateRandomString(6).trim().toLowerCase();
         socket.join(roomId);
 
-        console.log("Rooms: ", io.sockets.adapter.rooms);
-
         io.to(roomId).emit('roomCreated', { roomId: roomId.trim().toUpperCase(), host: user.username });
     });
   

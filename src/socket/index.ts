@@ -35,8 +35,6 @@ export function initializeSocketIO(httpServer: HTTPServer, gameManager: GameMana
   io.on("connection", (socket) => {
     console.log(`Socket connected: ${socket.id}`);
 
-    // console.log(io.sockets.adapter.rooms);
-
     registerLobbyHandlers(io, socket);
     registerGameHandlers(io, socket);
   });
