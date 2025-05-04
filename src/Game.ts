@@ -1,6 +1,8 @@
 import { Player } from "./types/Player";
+import { Tile } from "./types/tile";
 
 // Game.ts
+
 export class ScrabbleGame {
     id: string;
     board: string[][]; // 15x15
@@ -14,8 +16,7 @@ export class ScrabbleGame {
     constructor(id: string, players: Player[]) {
       this.id = id;
       this.players = players;
-      console.log("Players: ", players);
-      this.scores = Object.fromEntries(players.map(p => [p, 0]));
+      this.scores = Object.fromEntries(players.map(p => [p.username, 0]));
       this.currentPlayerIndex = 0;
       this.board = Array.from({ length: 15 }, () => Array(15).fill(''));
       this.tilePool = this.generateTiles();
@@ -24,7 +25,6 @@ export class ScrabbleGame {
     }
   
     generateTiles(): string[] {
-      // Populate with proper Scrabble distribution
       const letters = 'EEEEEEEEEEEEAAAAAAAAAIIIIIIIIONNNNNNRRRRRRTTTTTLLLLSSUUUDDDDGGGBBCCMMPPFFHHVVWWYYKJXQZ';
       return letters.split('').sort(() => Math.random() - 0.5); // Shuffle
     }
@@ -40,20 +40,85 @@ export class ScrabbleGame {
     getCurrentPlayer(): Player {
       return this.players[this.currentPlayerIndex];
     }
+
+    isValidWord(word: string): boolean {
+      // For now, assume all words are valid
+      return word.length > 1;
+    }
+
+    refillTiles(playerSocketID: string): void {
+      const rack = this.tileBags[playerSocketID];
+      const needed = 7 - rack.length;
+      const newTiles = this.tilePool.splice(0, needed);
+      this.tileBags[playerSocketID] = rack.concat(newTiles);
+    }
   
-    playWord(player: Player, word: string, x: number, y: number, direction: 'horizontal' | 'vertical'): boolean {
-      if (this.getCurrentPlayer() !== player) return false;
   
-      // Validate placement, check letters available, update board, score, etc.
-      // For now, assume valid
-      for (let i = 0; i < word.length; i++) {
-        const cx = direction === 'horizontal' ? x + i : x;
-        const cy = direction === 'vertical' ? y + i : y;
-        this.board[cy][cx] = word[i];
+    playWord(playerSocketID: string, letters: Tile[]): boolean {
+      const player = this.getCurrentPlayer();
+      if (!player || player.socketId !== playerSocketID) return false;
+      if (letters.length === 0) return false;
+  
+      const rack = this.tileBags[playerSocketID];
+      const usedLetters = letters.map(t => t.letter);
+      const rackCopy = [...rack];
+      for (const letter of usedLetters) {
+        const index = rackCopy.indexOf(letter);
+        if (index === -1) return false; // letter not in rack
+        rackCopy.splice(index, 1);
       }
   
-      this.scores[player.socketId] += word.length; // Simplified scoring
+      // Check alignment
+      const sameRow = letters.every(l => l.x === letters[0].x);
+      const sameCol = letters.every(l => l.y === letters[0].y);
+      if (!sameRow && !sameCol) return false;
+  
+      // Sort letters in placement order
+      letters.sort((a, b) => sameRow ? a.y - b.y : a.x - b.x);
+  
+      // Check continuity
+      for (let i = 1; i < letters.length; i++) {
+        const prev = letters[i - 1];
+        const curr = letters[i];
+        if (sameRow && curr.y !== prev.y + 1) return false;
+        if (sameCol && curr.x !== prev.x + 1) return false;
+      }
+  
+      // Check if space is available on the board
+      for (const tile of letters) {
+        if (this.board[tile.x][tile.y] !== '') return false;
+      }
+  
+      // First move must cover the center
+      if (this.board.every(row => row.every(cell => cell === ''))) {
+        const coversCenter = letters.some(t => t.x === 7 && t.y === 7);
+        if (!coversCenter) return false;
+      }
+  
+      // Place letters
+      for (const tile of letters) {
+        this.board[tile.x][tile.y] = tile.letter;
+      }
+  
+      // Form word string
+      const word = letters.map(t => t.letter).join('');
+      if (!this.isValidWord(word)) return false;
+  
+      // Score (simplified: 1 point per letter)
+      const score = letters.length;
+      this.scores[player.username] += score;
+  
+      // Remove used letters from rack
+      for (const letter of usedLetters) {
+        const index = this.tileBags[playerSocketID].indexOf(letter);
+        if (index !== -1) this.tileBags[playerSocketID].splice(index, 1);
+      }
+  
+      this.refillTiles(playerSocketID);
+  
+      // Next player's turn
       this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
+  
       return true;
     }
   

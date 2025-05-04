@@ -2,17 +2,15 @@
 import { Server, Socket } from 'socket.io';
 import { gameManager } from '../../GameManager';
 import { Player } from '../../types/Player';
+import { Tile } from '../../types/tile';
 
 export function registerGameHandlers(io: Server, socket: Socket) {
     socket.on('startGame', ({ roomId }) => {
 
-    
         if (!roomId) return;
         roomId = roomId.trim().toLowerCase();
         if (!roomId) return;
         
-        // console.log("Starting game in room: ", roomId);
-
         let players: Player[] = Array.from(io.sockets.adapter.rooms.get(roomId) || [])
         .map((socketId) => {
             const player = io.sockets.sockets.get(socketId);
@@ -26,8 +24,6 @@ export function registerGameHandlers(io: Server, socket: Socket) {
                 isHost: socketId === socket.id, // Check if the player is the host
             } as Player;
         });
-
-        // console.log("Players: ", players);
 
         // Check if the user is the host
         const user = socket.user;
@@ -60,11 +56,44 @@ export function registerGameHandlers(io: Server, socket: Socket) {
         io.to(roomId).emit('gameState', game.getGameState());
     });
 
-    socket.on('playMove', ({ roomId, word, x, y, direction }) => {
+    socket.on('playMove', ({ roomId, tiles }: {roomId: string; tiles: Tile[]}) => {
+
+        if (!roomId) return;
+        roomId = roomId.trim().toLowerCase();
+        if (!roomId) return;
+
+        // console.log('Play move event received:', roomId, tiles);
+
         const game = gameManager.getGame(roomId);
         if (!game) return;
 
-        const success = game.playWord(socket.data.username, word, x, y, direction);
+        // console.log('Game found:', game.id);
+
+        // console.log('Current player:', game.getCurrentPlayer().username);
+        // console.log("Room ID:", roomId);
+        // console.log("Socket ID:", socket.id);
+        
+        console.log("Letters to play:", tiles);
+
+        if (game.getCurrentPlayer().socketId !== socket.id) {
+            socket.emit('invalidMove', { reason: 'Not your turn' });
+            return;
+        }
+
+        if (!tiles || tiles.length === 0) {
+            socket.emit('invalidMove', { reason: 'No letters provided' });
+            return;
+        }
+        if (tiles.length > 7) {
+            socket.emit('invalidMove', { reason: 'Too many letters' });
+            return;
+        }
+
+
+        const success = game.playWord(socket.id, tiles);
+
+        console.log('Move success: ', success);
+
         if (success) {
             io.to(roomId).emit('gameUpdated', game.getGameState());
         } else {
