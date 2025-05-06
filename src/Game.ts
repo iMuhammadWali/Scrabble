@@ -1,5 +1,5 @@
 import { Player } from "./types/Player";
-import { Tile } from "./types/tile";
+import { Tile } from "./types/Tile";
 
 // Game.ts
 

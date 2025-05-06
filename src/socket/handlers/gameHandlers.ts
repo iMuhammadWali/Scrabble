@@ -2,10 +2,11 @@
 import { Server, Socket } from 'socket.io';
 import { gameManager } from '../../GameManager';
 import { Player } from '../../types/Player';
-import { Tile } from '../../types/tile';
+import { Tile } from '../../types/Tile';
+import { poolPromise } from '../../database';
 
 export function registerGameHandlers(io: Server, socket: Socket) {
-    socket.on('startGame', ({ roomId }) => {
+    socket.on('startGame', async ({ roomId }) => {
 
         if (!roomId) return;
         roomId = roomId.trim().toLowerCase();
@@ -52,6 +53,31 @@ export function registerGameHandlers(io: Server, socket: Socket) {
         }
 
         const game = gameManager.createGame(roomId, players);
+        const pool = await poolPromise;
+        const result = await pool.request()                                                           
+            .query<{GameID: number}>("INSERT INTO Games (winner) OUTPUT INSERTED.GameID VALUES (null)");
+
+        const gameId = result.recordset[0].GameID;
+        
+        await pool.request()
+            .input('gameId', gameId)
+            .input('player1', players[0].id)
+            .input('player2', players[1].id)
+            .query(`INSERT INTO GamePlayers (GameID, PlayerID, Score) VALUES (@gameId, @player1, 0), (@gameId, @player2, 0)`);
+
+        if (players[2]) {
+            await pool.request()
+                .input('gameId', gameId)
+                .input('player3', players[2].id)
+                .query(`INSERT INTO GamePlayers (GameID, PlayerID, Score) VALUES (@gameId, @player3, 0)`);
+        }
+        if (players[3]) {
+            await pool.request()
+                .input('gameId', gameId)
+                .input('player4', players[3].id)
+                .query(`INSERT INTO GamePlayers (GameID, PlayerID, Score) VALUES (@gameId, @player4, 0)`);
+        }
+
         io.to(roomId).emit('gameStarted', game.getGameState());
         io.to(roomId).emit('gameState', game.getGameState());
     });
@@ -62,17 +88,9 @@ export function registerGameHandlers(io: Server, socket: Socket) {
         roomId = roomId.trim().toLowerCase();
         if (!roomId) return;
 
-        // console.log('Play move event received:', roomId, tiles);
-
         const game = gameManager.getGame(roomId);
         if (!game) return;
 
-        // console.log('Game found:', game.id);
-
-        // console.log('Current player:', game.getCurrentPlayer().username);
-        // console.log("Room ID:", roomId);
-        // console.log("Socket ID:", socket.id);
-        
         console.log("Letters to play:", tiles);
 
         if (game.getCurrentPlayer().socketId !== socket.id) {
