@@ -1,10 +1,10 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import { poolPromise } from "../database";
 import authenticate from "../utils/authenticate";
 
 const router = express.Router();
 
-router.get("/player", authenticate, async (req, res) => {
+router.get("/player", authenticate, async (req: Request, res: Response): Promise<void> => {
     const pool = await poolPromise;
 
     const user = req.user;
@@ -23,7 +23,7 @@ router.get("/player", authenticate, async (req, res) => {
     }
 
     const games = await pool.request()
-        .input("playerID", user.id)
+        .input("playerID", user?.id)
         .query<
             {
                 gameID: number,
@@ -46,7 +46,8 @@ router.get("/player", authenticate, async (req, res) => {
         );
 
     if (games.recordset.length === 0) {
-        return res.status(404).json({ message: "No games found for this player." });
+        res.status(404).json({ message: "No games found for this player." });
+        return;
     }
 
     const gameMap = new Map<number, Game>();
@@ -71,9 +72,44 @@ router.get("/player", authenticate, async (req, res) => {
     const gameData = Array.from(gameMap.values());
     
     console.log(gameData);
-    return res.status(200).json({
+    res.status(200).json({
         gameData: gameData,
     });
+    return;
+});
+
+router.get("/leaderboard", async (req: Request, res: Response): Promise<void> => {
+    const pool = await poolPromise;
+
+    const games = await pool.request()
+        .query<
+            {
+                id: number,
+                username: string,
+                totalScore: number,
+            }
+        >("\
+            SELECT TOP 10 \
+                P.playerID as id, \
+                P.username, \
+                COALESCE(SUM(GP.score), 0) AS totalScore \
+            FROM Players P \
+            LEFT JOIN GamePlayers GP ON P.playerID = GP.PlayerID \
+            GROUP BY P.playerID, P.username \
+            ORDER BY totalScore DESC;\
+        ");
+
+    if (games.recordset.length === 0) {
+        res.status(404).json({ message: "No players found." });
+        return;
+    }
+
+    console.log(games.recordset);
+
+    res.status(200).json({
+        leaderboard: games.recordset,
+    });
+    return;
 });
 
 export default router;

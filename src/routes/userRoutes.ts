@@ -3,6 +3,7 @@ import express, { Request, Response, Router } from "express";
 import jwt from "jsonwebtoken";
 import argon2 from 'argon2';
 import nodemailer from 'nodemailer';
+import authenticate from "../utils/authenticate";
 
 
 // Note for me: For now, the token expires in 2h but I will implement a token refresh mechanism later after finishing the database tasks.
@@ -409,85 +410,26 @@ router.post("/delete-account", async (req: Request, res: Response) => {
 });
 
 
-// This also works fine.
-router.get("/view-profile", async (req: Request, res: Response):Promise<void> => {
+router.get("/profile", authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) {
-      res.status(401).json({ message: "Unauthorized" });
-      return;
-    }
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    const email = decoded.email;
+    
+    const email = req.user?.email;
+    const playerID = req.user?.id;
 
-    if (!email) {
-      res.status(400).json({ message: "Invalid token." });
-    }
     const pool = await poolPromise;
 
-    // 1. Get the basic Player data
-    const userResult = await pool
+    const joinedAtPool = await pool
       .request()
-      .input("email", email)
+      .input("playerID", playerID)
       .query(`
-        SELECT playerID, username, email, createdAt 
+        SELECT createdAt 
         FROM Players 
-        WHERE email = @email
+        WHERE playerID = @playerID
       `);
+    
+    const joinedAt = joinedAtPool.recordset[0]?.createdAt || null;
 
-    // If the user is not found, return 404
-    if (userResult.recordset.length === 0) {
-      res.status(404).json({ message: "User not found" });
-      return;
-    }
-
-    const { playerID, username, createdAt } = userResult.recordset[0];
-
-    // 2. Get Friends
-    // Using PL SQL in this query.
-    const friendsResult = await pool
-      .request()
-      .input("playerID", playerID)
-      .query(`
-        SELECT username FROM Players
-        WHERE playerID IN (
-          SELECT CASE
-            WHEN PlayerID1 = @playerID THEN PlayerID2
-            ELSE PlayerID1
-          END
-          FROM Friendships
-          WHERE PlayerID1 = @playerID OR PlayerID2 = @playerID
-        )
-      `);
-
-    const friends = friendsResult.recordset.map((r) => r.username);
-
-    // 3. Get received Requests
-    const incomingReqs = await pool
-      .request()
-      .input("playerID", playerID)
-      .query(`
-        SELECT p.username 
-        FROM FriendRequests fr
-        JOIN Players p ON p.playerID = fr.senderID
-        WHERE fr.receiverID = @playerID AND fr.requestStatus = 'Pending'
-      `);
-
-    const incomingRequests = incomingReqs.recordset.map((r) => r.username);
-
-    // 4. Now Get the Recently Finished Games
-    const recentGames = await pool
-      .request()
-      .input("playerID", playerID)
-      .query(`
-        SELECT TOP 5 g.GameID, gp.Score, g.EndedAt
-        FROM Games g
-        JOIN GamePlayers gp ON g.GameID = gp.GameID
-        WHERE gp.PlayerID = @playerID AND g.EndedAt IS NOT NULL
-        ORDER BY g.EndedAt DESC
-      `);
-
-    // 5. Total Words Played
+    // Get the total number of words played by the user
     const wordCount = await pool
       .request()
       .input("playerID", playerID)
@@ -497,7 +439,7 @@ router.get("/view-profile", async (req: Request, res: Response):Promise<void> =>
         WHERE PlayerID = @playerID
       `);
 
-    // 6. Highest Scoring Word
+    // Highest Scoring Word
     const topWordResult = await pool
       .request()
       .input("playerID", playerID)
@@ -514,23 +456,35 @@ router.get("/view-profile", async (req: Request, res: Response):Promise<void> =>
         ? topWordResult.recordset[0]
         : null;
 
-    res.status(200).json({
-      username,
-      email,
-      joinedAt: createdAt,
-      friends,
-      friendRequests: {
-        incoming: incomingRequests,
-      },
-      recentGames: recentGames.recordset,
-      wordsStats: {
-        totalWords,
-        highestScoringWord,
-      },
-    });
+    // Total Score
+    const totalScoreResult = await pool
+      .request()
+      .input("playerID", playerID)
+      .query(`
+        SELECT SUM(Score) AS totalScore 
+        FROM GamePlayers
+        WHERE PlayerID = @playerID
+      `);
+
+    const totalScore = totalScoreResult.recordset[0]?.totalScore || 0;
+
+    const userProfile = {
+        username: req.user?.username,
+        email: email,
+        totalScore: totalScore,
+        joinedAt: joinedAt,
+        wordStats: {
+            totalWords: totalWords,
+            highestScoringWord: highestScoringWord,
+        },
+    }
+
+    console.log("User Profile: ", userProfile);
+
+    res.status(200).json(userProfile);
     return;
   } catch (err) {
-    console.error("Error in /view-profile:", err);
+    console.error("Error in /profile:", err);
     res.status(500).json({ message: "Server error" });
   }
 });

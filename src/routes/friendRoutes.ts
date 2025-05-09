@@ -1,6 +1,5 @@
-import Express, { Request, Response, NextFunction } from "express";
+import Express, { Request, Response } from "express";
 import { poolPromise } from "../database";
-import jwt from 'jsonwebtoken';
 import authenticate from "../utils/authenticate";
 
 const router = Express.Router();
