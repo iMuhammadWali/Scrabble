@@ -6,14 +6,10 @@ import nodemailer from 'nodemailer';
 import authenticate from "../utils/authenticate";
 
 
-// Note for me: For now, the token expires in 2h but I will implement a token refresh mechanism later after finishing the database tasks.
-
 const router: Router = express.Router();
 const JWT_SECRET: string = process.env.JWT_SECRET as string;
 
 
-// Pausing this route for now and will ask for Abdullah Rashid's help for it.
-// We will do this on tuesday.
 router.post('/third-party-login', async (req: Request, res: Response): Promise<void> => {
   // I have yet to add test users to my OAuth Cloud consolse.
   try {
@@ -26,7 +22,6 @@ router.post('/third-party-login', async (req: Request, res: Response): Promise<v
 })
 
 
-// Register works fine.
 router.post("/register", async (req: Request, res: Response): Promise<void> => {
   try {
     const pool = await poolPromise;
@@ -75,7 +70,6 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
 });
 
 
-// Login route works fine.
 router.post("/login", async (req: Request, res: Response): Promise<void> => {
   try {
     const pool = await poolPromise; // I dont know the type. and I also believe that typescript is not for this purpose.
@@ -140,8 +134,6 @@ router.get("/check-token", async (req: Request, res: Response) => {
 });
 
 
-// This works but I am not sure if I need to add more production level checks here
-// But this works for the DB project
 router.post("/change-email", async (req: Request, res: Response) => {
   try {
     const { newEmail } = req.body;
@@ -154,7 +146,6 @@ router.post("/change-email", async (req: Request, res: Response) => {
     // Add the token verify check here later.
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const currentEmail = decoded.email;
-    console.log(currentEmail);
 
     if (!newEmail || !newEmail.includes("@") || !newEmail.includes(".")) {
       res.status(400).json({ message: "Invalid email format." });
@@ -189,7 +180,6 @@ router.post("/change-email", async (req: Request, res: Response) => {
 });
 
 
-// This works as well.
 router.post("/change-password", async (req: Request, res: Response) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -242,7 +232,6 @@ router.post("/change-password", async (req: Request, res: Response) => {
 });
 
 
-// This also works fine.
 router.post("/change-username", async (req: Request, res: Response) => {
   try {
     const { newUsername } = req.body;
@@ -295,12 +284,10 @@ router.post("/change-username", async (req: Request, res: Response) => {
 });
 
 
-// Works fine.
 router.post("/reset-password-request", async (req: Request, res: Response): Promise<void> => {
   try {
     const pool = await poolPromise;
     const { email } = req.body;
-    console.log("Email: ", email);
     if (!email || !email.includes("@") || !email.includes(".")) {
       res.status(400).json({ message: "Invalid email format." });
       return;
@@ -374,7 +361,6 @@ router.post("/reset-password", async (req: Request, res: Response) => {
     try {
 
       const decoded: any = jwt.verify(token, JWT_SECRET);
-      console.log("Decoded token: ", decoded);
       if (!decoded || !decoded.email) {
         res.status(400).json({ message: "Invalid token." });
         return;
@@ -478,8 +464,6 @@ router.get("/profile", authenticate, async (req: Request, res: Response): Promis
             highestScoringWord: highestScoringWord,
         },
     }
-
-    console.log("User Profile: ", userProfile);
 
     res.status(200).json(userProfile);
     return;

@@ -91,7 +91,6 @@ export function registerLobbyHandlers(io: Server, socket: Socket) {
             };
         });
 
-        console.log('Players in room:', players);
         io.to(roomId).emit('playerList', { players });
     })
 }

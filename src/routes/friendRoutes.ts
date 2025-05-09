@@ -35,8 +35,6 @@ router.post('/add-friend', async (req, res) => {
             return;
         }
 
-        console.log("UserID: ", userID);
-        console.log("ReceiverID: ", receiver.recordset[0].playerID);
         const receiverID = receiver.recordset[0].playerID;
         if (userID === receiverID) {
             res.status(400).json({ message: "You cannot send a friend request to yourself" });
@@ -79,8 +77,6 @@ router.post('/accept-friend', async (req, res) => {
             return;
         }
 
-        console.log("UserID: ", userID);
-
         await pool.request()
             .input("requestID", requestID)
             .query("UPDATE FriendRequests SET RequestStatus = 'Accepted' where requestID = @requestID");
@@ -88,8 +84,6 @@ router.post('/accept-friend', async (req, res) => {
         const request = await pool.request()
             .input("requestID", requestID)
             .query("SELECT * FROM FriendRequests WHERE requestID = @requestID");
-
-        console.log(request.recordset[0]);
 
         if (!request.recordset.length) {
             res.status(400).json({ message: "Request not found" });
@@ -135,8 +129,6 @@ router.get('/friends', async (req, res): Promise<void> => {
         const friendIDs = friends.recordset.map((record) => {
             return record.senderID === userID ? record.receiverID : record.senderID;
         });
-
-        console.log("FriendIDs: ", friendIDs);
 
         if (friendIDs.length === 0) {
             res.status(200).json({ friends: [] });

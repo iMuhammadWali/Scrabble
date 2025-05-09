@@ -24,6 +24,15 @@ export class GameManager {
   listGames() {
     return Array.from(this.games.values()).map(game => game.getGameState());
   }
+
+  wonGame(id: string, winner: Player) {
+    const game = this.getGame(id);
+    if (game) {
+      game.winner = winner;
+      this.removeGame(id);
+    }
+  }
+
 }
 
 export const gameManager = new GameManager();

@@ -83,7 +83,7 @@ export function registerGameHandlers(io: Server, socket: Socket) {
         io.to(roomId).emit('gameState', game.getGameState());
     });
 
-    socket.on('playMove', ({ roomId, tiles }: {roomId: string; tiles: Tile[]}) => {
+    socket.on('playMove', async ({ roomId, tiles }: {roomId: string; tiles: Tile[]}) => {
 
         if (!roomId) return;
         roomId = roomId.trim().toLowerCase();
@@ -91,8 +91,6 @@ export function registerGameHandlers(io: Server, socket: Socket) {
 
         const game = gameManager.getGame(roomId);
         if (!game) return;
-
-        // console.log("Letters to play:", tiles);
 
         if (game.getCurrentPlayer().socketId !== socket.id) {
             socket.emit('invalidMove', { reason: 'Not your turn' });
@@ -108,12 +106,11 @@ export function registerGameHandlers(io: Server, socket: Socket) {
             return;
         }
 
+        const move = game.playWord(socket.id, tiles);
 
-        const success = game.playWord(socket.id, tiles);
+        console.log('Move status: ', move);
 
-        console.log('Move success: ', success);
-
-        if (success.status === MoveStatus.Success) {
+        if (move.status === MoveStatus.Success) {
             io.to(roomId).emit('gameUpdated', game.getGameState());
 
             let player = socket.user;
@@ -121,14 +118,55 @@ export function registerGameHandlers(io: Server, socket: Socket) {
 
             let score = game.scores[player.username];
 
-            console.log("Current Player Score: ", player.username, score);
+            // Add the words to database
+            const pool = await poolPromise;
+
+            await pool.request()
+                .input('gameId', game.id)
+                .input('playerId', player.id)
+                .input('word', move.word?.word)
+                .input('score', move.word?.score)
+                .query(`
+                    INSERT INTO Words (GameID, PlayerID, Word, WordScore, PlayedAt)
+                    VALUES (@gameId, @playerId, @word, @score, SYSDATETIME())
+                `);
+
             // Check if the player has won
             if (score >= 10) {
-                console.log("Player Won: ", game.getCurrentPlayer());
+                gameManager.wonGame(roomId, game.getCurrentPlayer());
+
+                // Handle database update for the winner
+                const pool = await poolPromise;
+                await pool.request()
+                    .input('gameId', game.id)
+                    .input('winner', game.getCurrentPlayer().id)
+                    .query(`
+                        UPDATE Games
+                        SET Winner = @winner, EndedAt = SYSDATETIME()
+                        WHERE GameID = @gameId
+                    `);
+                
+                // Set Scores of Players in database
+                for (const player of game.players) {
+                    await pool.request()
+                        .input('gameId', game.id)
+                        .input('playerId', player.id)
+                        .input('score', game.scores[player.username])
+                        .query(`
+                            UPDATE GamePlayers
+                            SET Score = @score
+                            WHERE GameID = @gameId AND PlayerID = @playerId
+                        `);
+                }
+                
+                // Notify all players in the room about the winner
                 io.to(roomId).emit('playerWon', game.getCurrentPlayer());
             }
+
+            game.nextTurn();
+
         } else {
-            socket.emit('invalidMove', { reason: success.message });
+            socket.emit('invalidMove', { reason: move.message });
         }
     });
 

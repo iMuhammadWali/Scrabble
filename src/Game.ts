@@ -1,8 +1,15 @@
+import { stat } from "fs";
 import { Move, MoveStatus } from "./types/Game/Move";
 import { Player } from "./types/Game/Player";
 import { Tile } from "./types/Game/Tile";
 
 // Game.ts
+
+enum GameStatus {
+  Waiting,
+  InProgress,
+  Finished,
+}
 
 export class ScrabbleGame {
     id: string;
@@ -13,6 +20,8 @@ export class ScrabbleGame {
     tileBags: Record<string, string[]>; // each player's rack
     tilePool: string[]; // remaining tiles
     startedAt: Date;
+    status: GameStatus;
+    winner: Player | null; // Optional winner property
   
     constructor(id: string, players: Player[]) {
       this.id = id;
@@ -23,6 +32,8 @@ export class ScrabbleGame {
       this.tilePool = this.generateTiles();
       this.tileBags = this.dealInitialTiles(players);
       this.startedAt = new Date();
+      this.status = GameStatus.Waiting;
+      this.winner = null; // Initialize winner as null
     }
   
     generateTiles(): string[] {
@@ -43,8 +54,9 @@ export class ScrabbleGame {
     }
 
     isValidWord(word: string): boolean {
-      // For now, assume all words are valid
-      return word.length > 1;
+      // TODO: Add checks
+
+      return true;
     }
 
     refillTiles(playerSocketID: string): void {
@@ -137,11 +149,7 @@ export class ScrabbleGame {
         };
       }
   
-      // Place letters
-      for (const tile of letters) {
-        this.board[tile.x][tile.y] = tile.letter;
-      }
-  
+      
       // Form word string
       const word = letters.map(t => t.letter).join('');
       if (!this.isValidWord(word)) {
@@ -150,7 +158,12 @@ export class ScrabbleGame {
           message: "Invalid Word!"
         };
       };
-  
+      
+      // Place letters
+      for (const tile of letters) {
+        this.board[tile.x][tile.y] = tile.letter;
+      }
+
       // Score (simplified: 1 point per letter)
       const score = letters.length;
       this.scores[player.username] += score;
@@ -163,12 +176,10 @@ export class ScrabbleGame {
   
       this.refillTiles(playerSocketID);
   
-      // Next player's turn
-      this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
-  
       return {
         status: MoveStatus.Success,
-        message: "Moved"
+        message: "Moved",
+        word: { word, score }
       };
     }
   
@@ -182,5 +193,10 @@ export class ScrabbleGame {
         tileBags: this.tileBags,
       };
     }
+
+    nextTurn() {
+      this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
+    }
+
   }
   
