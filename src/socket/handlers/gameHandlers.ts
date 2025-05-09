@@ -1,9 +1,10 @@
 // socketHandlers/game.ts
 import { Server, Socket } from 'socket.io';
 import { gameManager } from '../../GameManager';
-import { Player } from '../../types/Player';
-import { Tile } from '../../types/Tile';
+import { Player } from '../../types/Game/Player';
+import { Tile } from '../../types/Game/Tile';
 import { poolPromise } from '../../database';
+import { MoveStatus } from '../../types/Game/Move';
 
 export function registerGameHandlers(io: Server, socket: Socket) {
     socket.on('startGame', async ({ roomId }) => {
@@ -91,7 +92,7 @@ export function registerGameHandlers(io: Server, socket: Socket) {
         const game = gameManager.getGame(roomId);
         if (!game) return;
 
-        console.log("Letters to play:", tiles);
+        // console.log("Letters to play:", tiles);
 
         if (game.getCurrentPlayer().socketId !== socket.id) {
             socket.emit('invalidMove', { reason: 'Not your turn' });
@@ -112,10 +113,34 @@ export function registerGameHandlers(io: Server, socket: Socket) {
 
         console.log('Move success: ', success);
 
-        if (success) {
+        if (success.status === MoveStatus.Success) {
             io.to(roomId).emit('gameUpdated', game.getGameState());
+
+            let player = socket.user;
+            if (!player) return;
+
+            let score = game.scores[player.username];
+
+            console.log("Current Player Score: ", player.username, score);
+            // Check if the player has won
+            if (score >= 10) {
+                console.log("Player Won: ", game.getCurrentPlayer());
+                io.to(roomId).emit('playerWon', game.getCurrentPlayer());
+            }
         } else {
-            socket.emit('invalidMove', { reason: 'Invalid turn or placement' });
+            socket.emit('invalidMove', { reason: success.message });
         }
     });
-}
+
+    socket.on('requestGameState', ({ roomId }) => {
+        
+        if (!roomId) return;
+        roomId = roomId.trim().toLowerCase();
+        if (!roomId) return;
+
+        const game = gameManager.getGame(roomId);
+        if (!game) return;
+
+        socket.emit('gameState', game.getGameState());
+    });
+};

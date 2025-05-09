@@ -73,6 +73,7 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+
 // Login route works fine.
 router.post("/login", async (req: Request, res: Response): Promise<void> => {
   try {
@@ -112,6 +113,7 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
     console.log("An Error has occured while logging the user in !", err);
   }
 });
+
 
 router.get("/check-token", async (req: Request, res: Response) => {
   try {
@@ -238,6 +240,7 @@ router.post("/change-password", async (req: Request, res: Response) => {
   }
 });
 
+
 // This also works fine.
 router.post("/change-username", async (req: Request, res: Response) => {
   try {
@@ -292,10 +295,16 @@ router.post("/change-username", async (req: Request, res: Response) => {
 
 
 // Works fine.
-router.post("/send-reset-password-request", async (req: Request, res: Response): Promise<void> => {
+router.post("/reset-password-request", async (req: Request, res: Response): Promise<void> => {
   try {
     const pool = await poolPromise;
     const { email } = req.body;
+    console.log("Email: ", email);
+    if (!email || !email.includes("@") || !email.includes(".")) {
+      res.status(400).json({ message: "Invalid email format." });
+      return;
+    }
+
     const result = await pool
       .request()
       .input("email", email)
@@ -303,7 +312,7 @@ router.post("/send-reset-password-request", async (req: Request, res: Response):
 
     // Works fine till this
     if (result.recordset.length == 0) {
-      res.json({ message: "Email does not exist !" });
+      res.status(401).json({ message: "Email does not exist!" });
       return;
     }
 
@@ -333,35 +342,60 @@ router.post("/send-reset-password-request", async (req: Request, res: Response):
     `
     };
 
+
     await transporter.sendMail(mailOptions);
     console.log('Reset email sent to:', email);
-    res.json({ message: "Reset link sent !" });
+    res.json({ message: "Reset link sent!" });
   }
   catch (err) {
     console.log(err);
   }
 });
+
+
 // Works fine.
 router.post("/reset-password", async (req: Request, res: Response) => {
   try {
-    const { token, newPassword } = req.body;
-    const decoded: any = jwt.verify(token, JWT_SECRET, (err: any)=> {
-      if (err) {
-        res.status(400).json({ message: "Invalid or expired token." });
+    const { token, newPassword, confirmPassword } = req.body;
+    if (!token) {
+      res.status(400).json({ message: "Token is required." });
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      res.status(400).json({ message: "New password must be at least 6 characters long." });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      res.status(400).json({ message: "Passwords do not match." });
+      return;
+    }
+
+    try {
+
+      const decoded: any = jwt.verify(token, JWT_SECRET);
+      console.log("Decoded token: ", decoded);
+      if (!decoded || !decoded.email) {
+        res.status(400).json({ message: "Invalid token." });
         return;
       }
-    });
-    const email = decoded.email;
-    const hashedPassword = await argon2.hash(newPassword);
-    const pool = await poolPromise;
+  
+      const email = decoded.email;
+      const hashedPassword = await argon2.hash(newPassword);
+      const pool = await poolPromise;
+  
+      //Update the password
+      pool.request()
+        .input("email", email)
+        .input("passwordHash", hashedPassword)
+        .query('UPDATE Players SET passwordHash = @passwordHash WHERE email = @email');
+  
+      res.status(200).json({ message: "Password reset successful." });
 
-    //Update the password
-    pool.request()
-      .input("email", email)
-      .input("passwordHash", hashedPassword)
-      .query('UPDATE Players SET passwordHash = @passwordHash WHERE email = @email');
+    } catch (err) {
+      console.error("Token verification error:", err);
+      res.status(400).json({ message: "Invalid or expired token." });
+    }
 
-    res.status(200).json({ message: "Password reset successful." });
   } catch (err) {
     console.error(err);
     res.status(400).json({ message: "Invalid or expired token." });
@@ -369,11 +403,11 @@ router.post("/reset-password", async (req: Request, res: Response) => {
 });
 
 
-
 // Placeholder for delete-account route
 router.post("/delete-account", async (req: Request, res: Response) => {
   res.status(501).json({ message: "Not implemented yet." });
 });
+
 
 // This also works fine.
 router.get("/view-profile", async (req: Request, res: Response):Promise<void> => {

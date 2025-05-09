@@ -22,11 +22,12 @@ export function registerLobbyHandlers(io: Server, socket: Socket) {
         const roomId = generateRandomString(6).trim().toLowerCase();
         socket.join(roomId);
 
+        GameManager.hosts.set(roomId, user.username); // Store the host username in the GameManager
+
         io.to(roomId).emit('roomCreated', { roomId: roomId.trim().toUpperCase(), host: user.username });
     });
   
     socket.on('joinRoom', (data) => {
-
         const user = socket.user;
         if (!user) return;
 
@@ -51,9 +52,10 @@ export function registerLobbyHandlers(io: Server, socket: Socket) {
         }
         
         // Check if the user is already in the room
-        const existingRoom = Array.from(socket.rooms).find((r) => r !== socket.id);
+        const existingRoom = Array.from(socket.rooms).find((r) => r === roomId);
+
         if (existingRoom) {
-            return socket.emit('alreadyInRoom', { message: 'You are already in a room' });
+            return socket.emit('alreadyInRoom', { message: 'You are already in the room' });
         }
 
         if (socket.rooms.size > 1) {
@@ -70,26 +72,26 @@ export function registerLobbyHandlers(io: Server, socket: Socket) {
                 return {
                     id: socketId,
                     username: inSocket?.user?.username,
-                    isHost: socketId != socket?.id,
+                    isHost: GameManager.hosts.get(roomId) === inSocket?.user?.username,
                 };
             })
         });
     });
 
-    socket.on('requestServerPlayersList', (data) => {
+    socket.on('requestPlayerList', (data) => {
         const roomId = socket.rooms.size > 1 ? Array.from(socket.rooms)[1] : null;
         if (!roomId) return;
 
         const players = Array.from(io.sockets.adapter.rooms.get(roomId) || []).map((socketId) => {
-            const socket = io.sockets.sockets.get(socketId);
+            const inSocket = io.sockets.sockets.get(socketId);
             return {
                 id: socketId,
-                username: socket?.user?.username,
-                isHost: socketId === socket?.id,
+                username: inSocket?.user?.username,
+                isHost: GameManager.hosts.get(roomId) === inSocket?.user?.username,
             };
         });
 
         console.log('Players in room:', players);
-        io.to(roomId).emit('serverPlayersList', { players });
+        io.to(roomId).emit('playerList', { players });
     })
 }

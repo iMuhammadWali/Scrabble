@@ -1,45 +1,41 @@
 import express from "express";
-import { GameManager } from "../GameManager";
+import { poolPromise } from "../database";
+import authenticate from "../utils/authenticate";
 
 const router = express.Router();
-const gameManager = new GameManager();
 
-router.post("/start", (req, res) => {
-    const { player1, player2 } = req.body; // Include playerId, username, socketId
-    const socket1 = req.app.get("io").sockets.sockets.get(player1.socketId);
-    const socket2 = req.app.get("io").sockets.sockets.get(player2.socketId);
+router.get("/player", authenticate, async (req, res) => {
+    const pool = await poolPromise;
 
-    if (!socket1 || !socket2) {
-        res.status(400).json({ error: "Invalid socket IDs" });
-        return;
+    const user = req.user;
+
+    const games = await pool.request()
+        .input("playerID", user.id)
+        .query("SELECT G.gameID, P.playerID, G.winner, P.username, GP.score, G.startedAt FROM GamePlayers GP\
+            JOIN Games G ON GP.GameID = G.GameID\
+            JOIN Players P ON GP.PlayerID = P.playerID\
+            WHERE GP.PlayerID = @playerID")
+
+    // console.log(games.recordset);
+
+    if (games.recordset.length === 0) {
+        return res.status(404).json({ message: "No games found for this player." });
     }
 
-    const gameId = gameManager.createGame(
-        { ...player1, socket: socket1 },
-        { ...player2, socket: socket2 }
-    );
+    const gameData = games.recordset.map((game) => {
+        return {
+            gameID: game.gameID,
+            playerID: game.playerID,
+            username: game.username,
+            score: game.score,
+            winner: game.winner,
+            startedAt: game.startedAt,
+        };
+    });
 
-    socket1.emit("gameStarted", { gameId });
-    socket2.emit("gameStarted", { gameId });
+    console.log(gameData);
 
-    res.json({ gameId });
-});
-
-router.get("/:gameId/state/:socketId", (req, res) => {
-    const { gameId, socketId } = req.params;
-    const game = gameManager.getGame(Number(gameId));
-    if (!game) {
-        res.status(404).json({ error: "Game not found" });
-        return;
-    }
-
-    const socket = req.app.get("io").sockets.sockets.get(socketId);
-    if (!socket) {
-        res.status(400).json({ error: "Invalid socket" });
-        return;
-    }
-    const state = game.getPublicState(socket);
-    res.json(state);
+    return res.status(200).json(gameData);
 });
 
 export default router;

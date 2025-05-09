@@ -12,21 +12,9 @@ router.use(authenticate);
 router.post('/add-friend', async (req, res) => {
     try {
         const { username } = req.body;
-        const token = req.headers.authorization?.split(' ')[1];
 
-        if (!token) {
-            res.status(401).json({ message: "Unauthorized" });
-            return;   
-        }
 
-        const decodedToken = jwt.verify(token, process.env.JWT_SECRET as string);
-        if (!decodedToken) {
-            res.status(401).json({ message: "Unauthorized" });
-            return;
-        }
-
-        const userID = (decodedToken as any).id; // Assuming the token contains id
-
+        const userID = req.user?.id;
 
         if (!userID) {
             res.status(401).json({ message: "Unauthorized" });
@@ -131,17 +119,25 @@ router.post('/accept-friend', async (req, res) => {
 //This works.
 router.get('/friends', async (req, res): Promise<void> => {
     try {
-        const userID = Number(req.query.userID);
+
+        const userID = req.user?.id;
+        if (!userID) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+        
         const pool = await poolPromise;
 
         const friends = await pool
             .request()
             .input("userID", userID)
-            .query("SELECT * FROM FriendRequests WHERE PlayerID1 = @userID OR PlayerID2 = @userID AND requestStatus = 'Accepted'");
+            .query("SELECT * FROM FriendRequests WHERE senderID = @userID OR receiverID = @userID AND requestStatus = 'Accepted'");
 
         const friendIDs = friends.recordset.map((record) => {
-            return record.PlayerID2 === userID ? record.PlayerID1 : record.PlayerID2;
+            return record.senderID === userID ? record.receiverID : record.senderID;
         });
+
+        console.log("FriendIDs: ", friendIDs);
 
         if (friendIDs.length === 0) {
             res.status(200).json({ friends: [] });
@@ -159,14 +155,21 @@ router.get('/friends', async (req, res): Promise<void> => {
             `SELECT playerID, username FROM Players WHERE PlayerID IN (${params})`
         );
 
-        const friendNames = result.recordset.map((record) => record.username);
+        const friendObjects = result.recordset.map((record) =>{
+            return {
+                playerID: record.playerID,
+                username: record.username
+            };
+        });
 
-        res.status(200).json({ friends: friendNames });
+        res.status(200).json({ friends: friendObjects });
     } catch (err: any) {
         console.error("Error fetching friends:", err);
         res.status(500).json({ message: "Internal server error" });
     }
 });
+
+
 //This works
 router.get('/received-requests', async (req, res) => {
     try {
@@ -193,8 +196,6 @@ router.get('/received-requests', async (req, res) => {
                 requestID: record.requestID as number
             };
         });
-
-        console.log(requestNames);
 
         res.status(200).json({ receivedRequests: requestNames });
     } catch (err: any) {

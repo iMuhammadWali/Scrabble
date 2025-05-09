@@ -1,5 +1,6 @@
-import { Player } from "./types/Player";
-import { Tile } from "./types/Tile";
+import { Move, MoveStatus } from "./types/Game/Move";
+import { Player } from "./types/Game/Player";
+import { Tile } from "./types/Game/Tile";
 
 // Game.ts
 
@@ -7,7 +8,7 @@ export class ScrabbleGame {
     id: string;
     board: string[][]; // 15x15
     players: Player[];
-    scores: Record<string, number>;
+    scores: Record<string, number>; // username -> score
     currentPlayerIndex: number;
     tileBags: Record<string, string[]>; // each player's rack
     tilePool: string[]; // remaining tiles
@@ -54,24 +55,45 @@ export class ScrabbleGame {
     }
   
   
-    playWord(playerSocketID: string, letters: Tile[]): boolean {
+    playWord(playerSocketID: string, letters: Tile[]): Move {
       const player = this.getCurrentPlayer();
-      if (!player || player.socketId !== playerSocketID) return false;
-      if (letters.length === 0) return false;
+      if (!player || player.socketId !== playerSocketID) {
+        return {
+          status: MoveStatus.Failed,
+          message: "Not Your Turn!"
+        };
+      }
+
+      if (letters.length === 0) {
+        return {
+          status: MoveStatus.Failed,
+          message: "No Letters received!"
+        };
+      }
   
       const rack = this.tileBags[playerSocketID];
       const usedLetters = letters.map(t => t.letter);
       const rackCopy = [...rack];
       for (const letter of usedLetters) {
         const index = rackCopy.indexOf(letter);
-        if (index === -1) return false; // letter not in rack
+        if (index === -1) {
+          return {
+            status: MoveStatus.Failed,
+            message: "Letter \"" + letter + "\" Not in Rack!"
+          };
+        }
         rackCopy.splice(index, 1);
       }
   
       // Check alignment
       const sameRow = letters.every(l => l.x === letters[0].x);
       const sameCol = letters.every(l => l.y === letters[0].y);
-      if (!sameRow && !sameCol) return false;
+      if (!sameRow && !sameCol) {
+        return {
+          status: MoveStatus.Failed,
+          message: "Letters must be in a straight line."
+        };
+      }
   
       // Sort letters in placement order
       letters.sort((a, b) => sameRow ? a.y - b.y : a.x - b.x);
@@ -80,19 +102,39 @@ export class ScrabbleGame {
       for (let i = 1; i < letters.length; i++) {
         const prev = letters[i - 1];
         const curr = letters[i];
-        if (sameRow && curr.y !== prev.y + 1) return false;
-        if (sameCol && curr.x !== prev.x + 1) return false;
+        if (sameRow && curr.y !== prev.y + 1) {
+          return {
+            status: MoveStatus.Failed,
+            message: "Letters not continuous!"
+          };
+        }
+        if (sameCol && curr.x !== prev.x + 1) {
+          return {
+            status: MoveStatus.Failed,
+            message: "Letters not continuous!"
+          };
+        }
       }
   
       // Check if space is available on the board
       for (const tile of letters) {
-        if (this.board[tile.x][tile.y] !== '') return false;
+        if (this.board[tile.x][tile.y] !== '') {
+          return {
+            status: MoveStatus.Failed,
+            message: "Invalid placement!"
+          };
+        };
       }
   
       // First move must cover the center
       if (this.board.every(row => row.every(cell => cell === ''))) {
         const coversCenter = letters.some(t => t.x === 7 && t.y === 7);
-        if (!coversCenter) return false;
+        if (!coversCenter) {
+          return {
+            status: MoveStatus.Failed,
+            message: "First move must be in center!"
+          };
+        };
       }
   
       // Place letters
@@ -102,7 +144,12 @@ export class ScrabbleGame {
   
       // Form word string
       const word = letters.map(t => t.letter).join('');
-      if (!this.isValidWord(word)) return false;
+      if (!this.isValidWord(word)) {
+        return {
+          status: MoveStatus.Failed,
+          message: "Invalid Word!"
+        };
+      };
   
       // Score (simplified: 1 point per letter)
       const score = letters.length;
@@ -119,7 +166,10 @@ export class ScrabbleGame {
       // Next player's turn
       this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
   
-      return true;
+      return {
+        status: MoveStatus.Success,
+        message: "Moved"
+      };
     }
   
     getGameState() {
