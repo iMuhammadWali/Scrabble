@@ -7,8 +7,8 @@ export class GameManager {
   private games: Map<string, ScrabbleGame> = new Map();
   public static hosts: Map<string, string> = new Map(); // Maps game IDs to host usernames
 
-  createGame(id: string, players: Player[]): ScrabbleGame {
-    const game = new ScrabbleGame(id, players);
+  createGame(dbId:number, id: string, players: Player[]): ScrabbleGame {
+    const game = new ScrabbleGame(dbId, id, players);
     this.games.set(id, game);
     return game;
   }

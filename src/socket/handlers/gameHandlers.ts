@@ -53,12 +53,12 @@ export function registerGameHandlers(io: Server, socket: Socket) {
             return;
         }
 
-        const game = gameManager.createGame(roomId, players);
         const pool = await poolPromise;
         const result = await pool.request()                                                           
-            .query<{GameID: number}>("INSERT INTO Games (winner) OUTPUT INSERTED.GameID VALUES (null)");
-
+        .query<{GameID: number}>("INSERT INTO Games (winner) OUTPUT INSERTED.GameID VALUES (null)");
+        
         const gameId = result.recordset[0].GameID;
+        const game = gameManager.createGame(gameId, roomId, players);
         
         await pool.request()
             .input('gameId', gameId)
@@ -111,7 +111,6 @@ export function registerGameHandlers(io: Server, socket: Socket) {
         console.log('Move status: ', move);
 
         if (move.status === MoveStatus.Success) {
-            io.to(roomId).emit('gameUpdated', game.getGameState());
 
             let player = socket.user;
             if (!player) return;
@@ -122,12 +121,12 @@ export function registerGameHandlers(io: Server, socket: Socket) {
             const pool = await poolPromise;
 
             await pool.request()
-                .input('gameId', game.id)
+                .input('gameId', game.dbId)
                 .input('playerId', player.id)
                 .input('word', move.word?.word)
                 .input('score', move.word?.score)
                 .query(`
-                    INSERT INTO Words (GameID, PlayerID, Word, WordScore, PlayedAt)
+                    INSERT INTO WordsPlayed (GameID, PlayerID, Word, WordScore, PlayedAt)
                     VALUES (@gameId, @playerId, @word, @score, SYSDATETIME())
                 `);
 
@@ -138,7 +137,7 @@ export function registerGameHandlers(io: Server, socket: Socket) {
                 // Handle database update for the winner
                 const pool = await poolPromise;
                 await pool.request()
-                    .input('gameId', game.id)
+                    .input('gameId', game.dbId)
                     .input('winner', game.getCurrentPlayer().id)
                     .query(`
                         UPDATE Games
@@ -149,7 +148,7 @@ export function registerGameHandlers(io: Server, socket: Socket) {
                 // Set Scores of Players in database
                 for (const player of game.players) {
                     await pool.request()
-                        .input('gameId', game.id)
+                        .input('gameId', game.dbId)
                         .input('playerId', player.id)
                         .input('score', game.scores[player.username])
                         .query(`
@@ -162,8 +161,9 @@ export function registerGameHandlers(io: Server, socket: Socket) {
                 // Notify all players in the room about the winner
                 io.to(roomId).emit('playerWon', game.getCurrentPlayer());
             }
-
+            
             game.nextTurn();
+            io.to(roomId).emit('gameUpdated', game.getGameState());
 
         } else {
             socket.emit('invalidMove', { reason: move.message });

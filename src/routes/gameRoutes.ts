@@ -151,7 +151,7 @@ router.get("/:gameID", authenticate, async (req: Request, res: Response): Promis
                 JOIN GamePlayers GP ON GP.PlayerID = P.PlayerID
                 JOIN Games G ON G.GameID = GP.GameID
                 LEFT JOIN WordsPlayed WP ON WP.PlayerID = P.PlayerID AND WP.GameID = G.GameID
-                WHERE G.GameID = 54 AND G.Winner IS NOT NULL
+                WHERE G.GameID = @gameID AND G.Winner IS NOT NULL
                 GROUP BY G.GameID, P.PlayerID, P.Username
             ),
             RankedPlayers AS (
@@ -178,7 +178,7 @@ router.get("/:gameID", authenticate, async (req: Request, res: Response): Promis
             JOIN Games G ON G.GameID = GP.GameID
             LEFT JOIN WordsPlayed WP ON WP.PlayerID = P.PlayerID AND WP.GameID = G.GameID
 
-            WHERE G.GameID = 54 AND G.Winner IS NOT NULL
+            WHERE G.GameID = @gameID AND G.Winner IS NOT NULL
 
             ORDER BY RP.playerRank ASC, WordScore DESC;
     `);

@@ -473,4 +473,34 @@ router.get("/profile", authenticate, async (req: Request, res: Response): Promis
   }
 });
 
+router.get("/vocabulary", authenticate, async (req: Request, res: Response) => {
+  try {
+    const playerID = req.user?.id;
+    if (!playerID) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const pool = await poolPromise;
+
+    const result = await pool
+      .request()
+      .input("playerID", playerID)
+      .query(`
+        SELECT Word
+        FROM WordsPlayed 
+        WHERE PlayerID = @playerID
+        ORDER BY WordScore DESC
+      `);
+
+    res.status(200).json( {
+      username: req.user?.username,
+      words: result.recordset.map((row: any) => row.Word),
+    });
+  } catch (err) {
+    console.error("Error in /vocabulary:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 export default router;

@@ -13,6 +13,7 @@ enum GameStatus {
 
 export class ScrabbleGame {
     id: string;
+    dbId: number; // Database ID
     board: string[][]; // 15x15
     players: Player[];
     scores: Record<string, number>; // username -> score
@@ -23,7 +24,7 @@ export class ScrabbleGame {
     status: GameStatus;
     winner: Player | null; // Optional winner property
   
-    constructor(id: string, players: Player[]) {
+    constructor(dbId:number, id: string, players: Player[]) {
       this.id = id;
       this.players = players;
       this.scores = Object.fromEntries(players.map(p => [p.username, 0]));
@@ -34,6 +35,7 @@ export class ScrabbleGame {
       this.startedAt = new Date();
       this.status = GameStatus.Waiting;
       this.winner = null; // Initialize winner as null
+      this.dbId = dbId;
     }
   
     generateTiles(): string[] {
