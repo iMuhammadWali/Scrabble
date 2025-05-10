@@ -1,6 +1,7 @@
 import express, { Request, Response } from "express";
 import { poolPromise } from "../database";
 import authenticate from "../utils/authenticate";
+import { convertToGameStats, GameStats } from "../utils/gameStats";
 
 const router = express.Router();
 
@@ -107,6 +108,96 @@ router.get("/leaderboard", async (req: Request, res: Response): Promise<void> =>
     res.status(200).json({
         leaderboard: games.recordset,
     });
+    return;
+});
+
+router.get("/:gameID", authenticate, async (req: Request, res: Response): Promise<void> => {
+    const pool = await poolPromise;
+
+    const gameID = req.params.gameID;
+
+    console.log("Game ID:", gameID);
+    if (!gameID) {
+        res.status(400).json({ message: "Game ID is required." });
+        return;
+    }
+    if (isNaN(Number(gameID))) {
+        res.status(400).json({ message: "Game ID must be a number." });
+        return;
+    }
+
+    const game = await pool.request()
+        .input("gameID", gameID)
+        .query<
+            {
+                gameID: number,
+                playerId: number,
+                username: string,
+                totalScore: number,
+                playerRank: number,
+                word: string,
+                wordScore: number,
+                gameDate: string,
+                gameDuration: number,
+            }
+        >(` 
+            WITH PlayerScores AS (
+                SELECT
+                    G.GameID,
+                    P.PlayerID,
+                    P.Username,
+                    SUM(ISNULL(WP.WordScore, 0)) AS totalScore
+                FROM Players P
+                JOIN GamePlayers GP ON GP.PlayerID = P.PlayerID
+                JOIN Games G ON G.GameID = GP.GameID
+                LEFT JOIN WordsPlayed WP ON WP.PlayerID = P.PlayerID AND WP.GameID = G.GameID
+                WHERE G.GameID = 54 AND G.Winner IS NOT NULL
+                GROUP BY G.GameID, P.PlayerID, P.Username
+            ),
+            RankedPlayers AS (
+                SELECT *,
+                    RANK() OVER (PARTITION BY GameID ORDER BY totalScore DESC) AS playerRank
+                FROM PlayerScores
+            )
+
+            SELECT
+                G.GameID AS gameID,
+                G.startedAt AS gameDate,
+                DATEDIFF(Second, G.startedAt, G.endedAt) AS gameDuration,
+                P.PlayerID AS playerId,
+                P.Username as username,
+                ISNULL(WP.Word, '') AS word,
+                ISNULL(WP.WordScore, 0) AS wordScore,
+                PS.totalScore,
+                RP.playerRank
+
+            FROM RankedPlayers RP
+            JOIN PlayerScores PS ON RP.PlayerID = PS.PlayerID AND RP.GameID = PS.GameID
+            JOIN Players P ON P.PlayerID = RP.PlayerID
+            JOIN GamePlayers GP ON GP.PlayerID = P.PlayerID
+            JOIN Games G ON G.GameID = GP.GameID
+            LEFT JOIN WordsPlayed WP ON WP.PlayerID = P.PlayerID AND WP.GameID = G.GameID
+
+            WHERE G.GameID = 54 AND G.Winner IS NOT NULL
+
+            ORDER BY RP.playerRank ASC, WordScore DESC;
+    `);
+
+    console.log("Game Data:", game.recordset);
+
+    let stats = convertToGameStats(game.recordset);
+
+    console.log("Converted Game Stats:", stats);
+
+    if (!stats) {
+        res.status(404).json({ message: "Game not found." });
+        return;
+    }
+
+    res.status(200).json({
+        gameData: stats,
+    });
+
     return;
 });
 
