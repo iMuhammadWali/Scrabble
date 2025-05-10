@@ -131,8 +131,7 @@ export function registerGameHandlers(io: Server, socket: Socket) {
                 `);
 
             // Check if the player has won
-            if (score >= 10) {
-                gameManager.wonGame(roomId, game.getCurrentPlayer());
+            if (score >= 5) { // TODO: Change to 10
 
                 // Handle database update for the winner
                 const pool = await poolPromise;
@@ -158,8 +157,22 @@ export function registerGameHandlers(io: Server, socket: Socket) {
                         `);
                 }
                 
+                io.to(roomId).emit('gameUpdated', game.getGameState());
+
                 // Notify all players in the room about the winner
                 io.to(roomId).emit('playerWon', game.getCurrentPlayer());
+                const room = io.sockets.adapter.rooms.get(roomId);
+                // Kick all players from the room
+                if (room) {
+                    room.forEach((socketId) => {
+                        const playerSocket = io.sockets.sockets.get(socketId);
+                        if (playerSocket) {
+                            playerSocket.leave(roomId);
+                        }
+                    });
+                }
+                gameManager.wonGame(roomId, game.getCurrentPlayer());
+                return;
             }
             
             game.nextTurn();

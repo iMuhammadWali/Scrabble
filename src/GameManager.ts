@@ -29,7 +29,6 @@ export class GameManager {
     const game = this.getGame(id);
     if (game) {
       game.winner = winner;
-      this.removeGame(id);
     }
   }
 

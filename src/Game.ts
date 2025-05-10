@@ -52,7 +52,9 @@ export class ScrabbleGame {
     }
   
     getCurrentPlayer(): Player {
-      return this.players[this.currentPlayerIndex];
+      let player = this.players[this.currentPlayerIndex];
+      player.score = this.scores[player.username];
+      return player;
     }
 
     isValidWord(word: string): boolean {
