@@ -12,6 +12,8 @@
 	-- Then as soon as the game starts, enter stuff in the gamePlayers table.
 	-- Then on each word formed by player, we will store that in the words formed table.
 
+USE ScrabbleDB;
+GO
 
 CREATE TABLE Players (
     playerID INT IDENTITY(1,1) PRIMARY KEY, -- Auto increment Player IDs.
@@ -50,14 +52,13 @@ CREATE TABLE Friendships (
 
 CREATE TABLE Games (
     GameID INT IDENTITY(1,1) PRIMARY KEY,
-    GameMode VARCHAR(50) NOT NULL,      -- Local, Friends, Global
-    CustomTimeLimit INT NOT NULL,        -- We can decide the unit later.
-
     CreatedAt DATETIME NOT NULL DEFAULT GETDATE(), 
 
 	-- Since we are doing a DB project, we can store these for several reasons.
     StartedAt DATETIME NULL,
-    EndedAt DATETIME NULL  -- to display the recent games as well the ongoing games.
+    EndedAt DATETIME NULL,  -- to display the recent games as well the ongoing games.
+    Winner INT NULL,
+    FOREIGN KEY (Winner) REFERENCES Players(PlayerID),  -- NULL if game is ongoing or draw.
 
 	-- Note: StartedAt SUBTRACT CreatedAt shows the time taken to find players.
 );
@@ -70,7 +71,6 @@ CREATE TABLE Games (
 CREATE TABLE GamePlayers (
     GameID INT NOT NULL,
     PlayerID INT NOT NULL,
-    placeOnBoard INT NOT NULL,  -- Because there are maximum four players.
     Score INT NOT NULL DEFAULT 0, 
     PRIMARY KEY (GameID, PlayerID),
     CONSTRAINT FK_GamePlayers_Game FOREIGN KEY (GameID) REFERENCES Games(GameID),
